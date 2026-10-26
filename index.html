@@ -1,0 +1,2060 @@
+<!doctype html>
+<html lang="lo">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#111214">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ແສງສີ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>ແສງສີ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one-screen photo editor. Library grid ↔ editor (top bar / image / tool panel / thumb tab bar).
+   Deliberately single dark neutral theme: a slightly cool charcoal so the photo's own colors are judged without a tinted surround. */
+:root{
+  color-scheme: dark;
+  --bg:#111214;          /* surround behind the photo */
+  --panel:#18191c;       /* tool panel */
+  --raise:#222429;       /* chips, buttons */
+  --line:#2c2f35;
+  --fg:#ecebe7;
+  --muted:#8d9098;
+  --accent:#73b6e6;      /* daylight blue: sliders, active tab */
+  --accent-ink:#0b1a26;
+  --warm:#f0b35b;        /* mask/heal handles */
+  --danger:#ef6b6b;
+  --f-ui:"Noto Sans Lao","Noto Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:12px;
+  --tab-h:62px;
+}
+html,body{height:100%;background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-ui);font-size:14px;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;overscroll-behavior:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg{display:block}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+
+/* ---------- Library ---------- */
+.lib-head{display:flex;align-items:center;gap:10px;padding-block:14px 10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.brand-mark{width:30px;height:30px;border-radius:9px;flex:none;
+  background:conic-gradient(from 200deg,#f0b35b,#ef6b6b,#b98be8,#73b6e6,#7fd1a6,#f0b35b)}
+.brand h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.01em}
+.brand small{display:block;color:var(--muted);font-size:12px;font-weight:400;margin-top:-2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 14px;border-radius:999px;background:var(--raise);font-weight:500;white-space:nowrap}
+.btn.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--danger);border:1px solid #4a2a2c}
+.btn:disabled{opacity:.4}
+.lib-tools{display:flex;gap:8px;align-items:center;padding-block:0 10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow-x:auto;scrollbar-width:none}
+.lib-tools::-webkit-scrollbar{display:none}
+.lib-count{color:var(--muted);font-size:13px;margin-right:auto;white-space:nowrap}
+.grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;align-content:start;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px));padding-bottom:90px}
+@media (min-width:640px){.grid{grid-template-columns:repeat(5,1fr)}}
+.tile{position:relative;aspect-ratio:1;max-width:100%;background:var(--raise);overflow:hidden}
+.tile img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.tile .badge{position:absolute;left:6px;bottom:6px;font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(10,11,13,.72);color:var(--fg)}
+.tile .check{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:rgba(0,0,0,.25)}
+.tile.sel .check{background:var(--accent);border-color:var(--accent)}
+.tile.sel .check::after{content:"";position:absolute;left:6px;top:2px;width:6px;height:11px;border:solid var(--accent-ink);border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+.tile.sel img{opacity:.75}
+.empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:60px 24px;line-height:1.7}
+.fab{position:fixed;right:max(18px,env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));height:54px;padding:0 22px;border-radius:999px;
+  background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.batchbar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;overflow-x:auto;background:var(--panel);border-top:1px solid var(--line);
+  padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+
+/* ---------- Editor ---------- */
+.topbar{display:flex;align-items:center;gap:2px;height:52px;flex:none;
+  padding-left:max(6px,env(safe-area-inset-left,0px));padding-right:max(6px,env(safe-area-inset-right,0px))}
+.ib{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--fg)}
+.ib:active{background:var(--raise)}
+.ib:disabled{opacity:.3}
+.ib svg{width:22px;height:22px}
+.top-title{flex:1;min-width:0;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.export-btn{height:36px;padding:0 14px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:600;margin-left:4px}
+.stage{position:relative;flex:1;min-height:120px;overflow:hidden;background:var(--bg)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{touch-action:none}
+.hint{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(12,13,15,.78);color:var(--fg);font-size:12px;padding:5px 12px;border-radius:999px;pointer-events:none;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+.badge-before{position:absolute;left:12px;top:10px;background:var(--warm);color:#1d1406;font-weight:600;font-size:12px;padding:4px 10px;border-radius:999px;pointer-events:none}
+.zoomtag{position:absolute;right:12px;top:10px;background:rgba(12,13,15,.78);font-family:var(--f-num);font-size:11px;padding:4px 8px;border-radius:8px;pointer-events:none}
+.spinner{position:absolute;inset:0;display:grid;place-items:center;background:rgba(17,18,20,.6)}
+.spinner::after{content:"";width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.panel{flex:none;background:var(--panel);border-top:1px solid var(--line);max-height:44vh;overflow-y:auto;overscroll-behavior:contain;
+  padding-block:6px 10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.tabs{flex:none;display:flex;overflow-x:auto;scrollbar-width:none;background:var(--panel);border-top:1px solid var(--line);height:var(--tab-h);
+  padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1 0 64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:11px;border-radius:10px;position:relative}
+.tab svg{width:22px;height:22px}
+.tab.on{color:var(--accent)}
+.tab.on::before{content:"";position:absolute;top:0;left:30%;right:30%;height:2px;border-radius:2px;background:var(--accent)}
+.tab .dot{position:absolute;top:9px;right:calc(50% - 16px);width:6px;height:6px;border-radius:50%;background:var(--warm)}
+
+.sec{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px;display:flex;align-items:center;gap:8px}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+.row{padding:6px 0 2px}
+.rl{display:flex;align-items:baseline;gap:6px;margin-bottom:2px}
+.rl .lb{font-size:14px}
+.rl .en{font-size:11px;color:var(--muted)}
+.rl output{margin-left:auto;font-family:var(--f-num);font-size:12px;color:var(--muted);min-width:46px;text-align:right;font-variant-numeric:tabular-nums}
+.row.changed .rl output{color:var(--accent)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0;touch-action:pan-y}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:var(--trk,linear-gradient(90deg,var(--line),var(--line)))}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--trk,var(--line))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#f4f3ef;margin-top:-9px;box-shadow:0 1px 4px rgba(0,0,0,.6);border:0}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#f4f3ef;border:0}
+
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:6px 0}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;height:36px;padding:0 14px;border-radius:999px;background:var(--raise);font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid transparent}
+.chip.on{background:transparent;border-color:var(--accent);color:var(--accent)}
+.chip svg{width:18px;height:18px}
+.seg{display:flex;background:var(--raise);border-radius:12px;padding:3px;gap:2px;margin:6px 0}
+.seg button{flex:1;height:34px;border-radius:9px;font-size:13px;color:var(--muted)}
+.seg button.on{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.swatches{display:flex;justify-content:space-between;padding:8px 2px}
+.sw{width:32px;height:32px;border-radius:50%;position:relative}
+.sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--fg)}
+.sw.mod::after{content:"";position:absolute;right:-1px;top:-1px;width:8px;height:8px;border-radius:50%;background:var(--warm);border:2px solid var(--panel)}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;padding:6px 0}
+.btnrow .btn{height:38px;font-size:13px}
+.toggle{display:flex;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}
+.sw-t{width:46px;height:28px;border-radius:999px;background:var(--line);position:relative;flex:none}
+.sw-t::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#f4f3ef;transition:transform .15s}
+.sw-t.on{background:var(--accent)}
+.sw-t.on::after{transform:translateX(18px)}
+.note{color:var(--muted);font-size:12.5px;line-height:1.6;margin:6px 0}
+.hist{width:100%;height:64px;display:block;margin:6px 0 2px;border-radius:8px;background:#0e0f11}
+.curvebox{position:relative;width:100%;max-width:340px;margin:6px auto 0;aspect-ratio:1;max-height:34vh}
+.curvebox canvas{width:100%;height:100%;display:block;touch-action:none;border-radius:10px;background:#0e0f11}
+
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px;padding:6px 0}
+.pcard{display:flex;flex-direction:column;gap:5px;text-align:left}
+.pcard .pimg{aspect-ratio:1;max-width:100%;border-radius:10px;background:var(--raise);overflow:hidden;border:2px solid transparent}
+.pcard .pimg img{width:100%;height:100%;object-fit:cover;display:block}
+.pcard.on .pimg{border-color:var(--accent)}
+.pcard span{font-size:12px;line-height:1.3;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard.user span{color:var(--warm)}
+.inline-form{display:flex;gap:8px;padding:6px 0}
+.inline-form input{flex:1;min-width:0;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:0 12px;font:inherit;user-select:text;-webkit-user-select:text}
+.masklist{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:6px 0}
+.mchip{flex:none;display:flex;align-items:center;gap:6px;height:38px;padding:0 12px;border-radius:10px;background:var(--raise);font-size:13px;border:1px solid transparent}
+.mchip.on{border-color:var(--warm);color:var(--warm)}
+.mchip svg{width:16px;height:16px}
+
+/* sheets */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40;display:flex;align-items:flex-end}
+.sheet{width:100%;max-height:88vh;overflow-y:auto;background:var(--panel);border-radius:18px 18px 0 0;border-top:1px solid var(--line);
+  padding-block:10px calc(18px + env(safe-area-inset-bottom,0px));padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px))}
+.sheet .grab{width:40px;height:4px;border-radius:4px;background:var(--line);margin:0 auto 12px}
+.sheet h2{margin:0 0 4px;font-size:18px}
+.sheet .opts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.sheet .opt{height:58px;border-radius:12px;background:var(--raise);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1px solid transparent;font-size:14px}
+.sheet .opt small{color:var(--muted);font-size:11px;font-family:var(--f-num)}
+.sheet .opt.on{border-color:var(--accent);color:var(--accent)}
+.results{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}
+.results figure{margin:0;display:flex;flex-direction:column;gap:6px}
+.results img{width:100%;border-radius:10px;display:block;user-select:auto;-webkit-user-select:auto;-webkit-touch-callout:default}
+.results figcaption{font-size:11px;color:var(--muted);font-family:var(--f-num);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.progress{height:6px;border-radius:6px;background:var(--line);overflow:hidden;margin:12px 0}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#f4f3ef;color:#141518;font-weight:500;padding:10px 16px;border-radius:999px;z-index:60;font-size:13px;max-width:90%;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:0s!important}}
+</style>
+
+<style>html,body{margin:0}</style>
+</head>
+<body>
+<!-- Library -->
+<section id="lib" class="screen">
+  <header class="lib-head">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div><h1>ແສງສີ</h1><small>ແຕ່ງຮູບ ແລະ ສີ ໃນມືຖື</small></div>
+    </div>
+    <button class="btn ghost" id="btnSelect">ເລືອກ</button>
+  </header>
+  <div class="lib-tools">
+    <span class="lib-count" id="libCount"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+  <button class="fab" id="btnAdd"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>ເພີ່ມຮູບ</button>
+  <div class="batchbar" id="batchbar" hidden>
+    <button class="btn" id="bPreset">ໃສ່ໂປຣເຊັດ</button>
+    <button class="btn" id="bPaste">ວາງການແກ້ໄຂ</button>
+    <button class="btn primary" id="bExport">ສົ່ງອອກ</button>
+    <button class="btn danger" id="bDelete">ລຶບ</button>
+  </div>
+  <input type="file" id="fileIn" accept="image/*" multiple hidden>
+</section>
+
+<!-- Editor -->
+<section id="ed" class="screen" hidden>
+  <header class="topbar">
+    <button class="ib" id="btnBack" aria-label="ກັບຄືນ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="top-title" id="edTitle"></div>
+    <button class="ib" id="btnUndo" aria-label="ຍົກເລີກ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button class="ib" id="btnRedo" aria-label="ເຮັດຄືນ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg></button>
+    <button class="ib" id="btnCompare" aria-label="ກົດຄ້າງເພື່ອເບິ່ງກ່ອນແກ້"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/><path d="M12 4h7a2 2 0 012 2v12a2 2 0 01-2 2h-7z" fill="currentColor" stroke="none" opacity=".35"/></svg></button>
+    <button class="export-btn" id="btnExport">ສົ່ງອອກ</button>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="gl"></canvas>
+    <canvas id="ov"></canvas>
+    <div class="badge-before" id="beforeTag" hidden>ກ່ອນແກ້</div>
+    <div class="zoomtag" id="zoomTag" hidden></div>
+    <div class="hint" id="hint" hidden></div>
+    <div class="spinner" id="spin" hidden></div>
+  </div>
+  <div class="panel" id="panel"></div>
+  <nav class="tabs" id="tabs"></nav>
+</section>
+
+<div id="sheetRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+/* ================= ແສງສີ — WebGL2 render engine ================= */
+'use strict';
+
+/* ---------- geometry (shared by shader and JS) ---------- */
+// frame coords f∈[0,1]² of a crop rect → original image uv (0,0 = top-left)
+function f2uv(fx, fy, crop, g, Wo, Ho) {
+  const qx = crop.cx * Wo + (fx - 0.5) * crop.w * Wo;
+  const qy = crop.cy * Ho + (fy - 0.5) * crop.h * Ho;
+  const a = -g.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  let x = (c * qx - s * qy) / Wo, y = (s * qx + c * qy) / Ho;
+  const pv = g.pv * PERSP_K, ph = g.ph * PERSP_K;
+  const d = 1 + pv * y + ph * x; x /= d; y /= d;
+  x += 0.5; y += 0.5;
+  if (g.flipH) x = 1 - x;
+  if (g.flipV) y = 1 - y;
+  for (let i = 0; i < g.rot90; i++) { const nx = y, ny = 1 - x; x = nx; y = ny; }
+  return [x, y];
+}
+function uv2f(x, y, crop, g, Wo, Ho) {
+  for (let i = 0; i < g.rot90; i++) { const nx = 1 - y, ny = x; x = nx; y = ny; }
+  if (g.flipH) x = 1 - x;
+  if (g.flipV) y = 1 - y;
+  x -= 0.5; y -= 0.5;
+  const pv = g.pv * PERSP_K, ph = g.ph * PERSP_K;
+  const d = 1 / (1 - pv * y - ph * x); x *= d; y *= d;
+  const ox = x * Wo, oy = y * Ho;
+  const a = g.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const qx = c * ox - s * oy, qy = s * ox + c * oy;
+  return [(qx - crop.cx * Wo) / (crop.w * Wo) + 0.5, (qy - crop.cy * Ho) / (crop.h * Ho) + 0.5];
+}
+const PERSP_K = 0.006; // slider ±100 → ±0.6
+function orientedSize(W, H, rot90) { return rot90 % 2 ? [H, W] : [W, H]; }
+function cropFits(crop, g, Wo, Ho) {
+  const pts = [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0], [0.5, 1], [0, 0.5], [1, 0.5]];
+  for (const [fx, fy] of pts) {
+    const [u, v] = f2uv(fx, fy, crop, g, Wo, Ho);
+    if (!(u > -1e-4 && u < 1.0001 && v > -1e-4 && v < 1.0001)) return false;
+  }
+  return true;
+}
+// largest centred rect of ratio r (oriented px), shrunk until it fits
+function maxCrop(g, Wo, Ho, ratio) {
+  const r = ratio || Wo / Ho;
+  let w = Wo, h = w / r;
+  if (h > Ho) { h = Ho; w = h * r; }
+  const base = { cx: 0, cy: 0, w: w / Wo, h: h / Ho };
+  return shrinkToFit(base, g, Wo, Ho);
+}
+function shrinkToFit(crop, g, Wo, Ho) {
+  if (cropFits(crop, g, Wo, Ho)) return crop;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const m = (lo + hi) / 2;
+    const c = { cx: crop.cx * m, cy: crop.cy * m, w: crop.w * m, h: crop.h * m };
+    if (cropFits(c, g, Wo, Ho)) lo = m; else hi = m;
+  }
+  return { cx: crop.cx * lo, cy: crop.cy * lo, w: crop.w * lo, h: crop.h * lo };
+}
+// move from a (valid) toward b as far as it stays valid
+function towardValid(a, b, g, Wo, Ho) {
+  if (cropFits(b, g, Wo, Ho)) return b;
+  let lo = 0, hi = 1;
+  const L = t => ({ cx: a.cx + (b.cx - a.cx) * t, cy: a.cy + (b.cy - a.cy) * t, w: a.w + (b.w - a.w) * t, h: a.h + (b.h - a.h) * t });
+  for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (cropFits(L(m), g, Wo, Ho)) lo = m; else hi = m; }
+  return L(lo);
+}
+function bboxCrop(g, Wo, Ho) {
+  const a = Math.abs(g.angle * Math.PI / 180), c = Math.cos(a), s = Math.sin(a);
+  return { cx: 0, cy: 0, w: (c * Wo + s * Ho) / Wo, h: (s * Wo + c * Ho) / Ho };
+}
+
+/* ---------- tone curve: monotone cubic (Fritsch–Carlson) → 256 samples ---------- */
+function curveSamples(points) {
+  const p = points.slice().sort((a, b) => a[0] - b[0]);
+  const n = p.length, out = new Float32Array(256);
+  if (n < 2) { for (let i = 0; i < 256; i++) out[i] = i / 255; return out; }
+  const xs = p.map(q => q[0]), ys = p.map(q => q[1]);
+  const d = [], m = new Array(n);
+  for (let i = 0; i < n - 1; i++) d.push((ys[i + 1] - ys[i]) / Math.max(1e-6, xs[i + 1] - xs[i]));
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (Math.abs(d[i]) < 1e-9) { m[i] = 0; m[i + 1] = 0; continue; }
+    const a = m[i] / d[i], b = m[i + 1] / d[i], h = a * a + b * b;
+    if (h > 9) { const t = 3 / Math.sqrt(h); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+  }
+  for (let k = 0; k < 256; k++) {
+    const x = k / 255;
+    let y;
+    if (x <= xs[0]) y = ys[0];
+    else if (x >= xs[n - 1]) y = ys[n - 1];
+    else {
+      let i = 0; while (i < n - 2 && x > xs[i + 1]) i++;
+      const h = xs[i + 1] - xs[i], t = (x - xs[i]) / h, t2 = t * t, t3 = t2 * t;
+      y = (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h * m[i + 1];
+    }
+    out[k] = Math.min(1, Math.max(0, y));
+  }
+  return out;
+}
+function isIdentityCurve(pts) { return pts.length === 2 && pts[0][0] === 0 && pts[0][1] === 0 && pts[1][0] === 1 && pts[1][1] === 1; }
+
+/* ---------- shaders ---------- */
+const GLSL_HEAD = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+const vec3 LW = vec3(0.2126, 0.7152, 0.0722);
+float luma(vec3 c){ return dot(c, LW); }
+vec3 toLin(vec3 c){ return pow(max(c, vec3(0.0)), vec3(2.2)); }
+vec3 toGam(vec3 c){ return pow(max(c, vec3(0.0)), vec3(1.0/2.2)); }
+vec3 wbMul(float t, float ti){ vec3 m = vec3(exp(t*0.32), exp(-ti*0.28), exp(-t*0.32)); return m / luma(m); }
+float toneL(float L, float con, float hi, float sh, float wh, float bl){
+  float bp = -bl*0.10; float wp = 1.0 - wh*0.18;
+  L = (L - bp) / max(wp - bp, 0.05);
+  float ws = 1.0 - smoothstep(0.0, 0.6, L);
+  float sk = sh >= 0.0 ? 1.0/(1.0 + sh*1.4) : 1.0 + (-sh)*1.4;
+  L = mix(L, pow(max(L, 0.0), sk), ws);
+  float w2 = smoothstep(0.3, 0.95, L);
+  float x = L - 0.3;
+  float Lh = hi < 0.0 ? 0.3 + x/(1.0 + (-hi)*1.5*max(x, 0.0)) : 0.3 + x*(1.0 + hi*0.5);
+  L = mix(L, Lh, w2);
+  float m = 0.45; float k = exp(con*0.9);
+  float y = clamp(L, 0.0, 1.0);
+  float s = y < m ? m*pow(y/m, k) : 1.0 - (1.0-m)*pow((1.0-y)/(1.0-m), k);
+  return s + (L - y);
+}
+`;
+
+const VS = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main(){ vUv = aPos*0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+const FS_DOWN = GLSL_HEAD + `
+uniform sampler2D uTex; uniform vec2 uTexel;
+void main(){ vec2 d = uTexel*0.5;
+  o = 0.25*(texture(uTex, vUv+vec2(-d.x,-d.y)) + texture(uTex, vUv+vec2(d.x,-d.y)) + texture(uTex, vUv+vec2(-d.x,d.y)) + texture(uTex, vUv+d)); }`;
+
+const FS_BLUR = GLSL_HEAD + `
+uniform sampler2D uTex; uniform vec2 uDir; uniform float uSigma;
+void main(){
+  vec4 acc = texture(uTex, vUv); float ws = 1.0;
+  for(int i=1;i<=12;i++){ float fi = float(i); if(fi > uSigma*3.0) break;
+    float w = exp(-fi*fi/(2.0*uSigma*uSigma));
+    acc += (texture(uTex, vUv + uDir*fi) + texture(uTex, vUv - uDir*fi))*w; ws += 2.0*w; }
+  o = acc/ws; }`;
+
+const FS_HEAL = GLSL_HEAD + `
+uniform sampler2D uTex; uniform sampler2D uLow; uniform vec2 uSize; uniform int uN;
+uniform vec4 uSpot[32]; uniform vec4 uSpotS[32];
+vec3 ring(vec2 c, float r){ vec3 a = vec3(0.0);
+  for(int k=0;k<8;k++){ float t = float(k)*0.7853982; a += texture(uLow, c + vec2(cos(t), sin(t))*r/uSize).rgb; } return a/8.0; }
+void main(){
+  vec3 c = texture(uTex, vUv).rgb; vec2 p = vUv*uSize;
+  for(int i=0;i<32;i++){ if(i>=uN) break;
+    vec2 d = uSpot[i].xy*uSize; float r = uSpot[i].z; float dist = length(p - d);
+    if(dist < r){
+      float a = 1.0 - smoothstep(r*(1.0 - uSpot[i].w), r, dist);
+      vec2 off = uSpotS[i].xy - uSpot[i].xy;
+      vec3 s = texture(uTex, vUv + off).rgb;
+      if(uSpotS[i].z < 0.5){ s += ring(uSpot[i].xy, r*1.15) - ring(uSpotS[i].xy, r*1.15); }
+      c = mix(c, s, a*uSpotS[i].w);
+    } }
+  o = vec4(c, 1.0); }`;
+
+const FS_DEV = GLSL_HEAD + `
+uniform sampler2D uTex, uBS, uBM, uBL, uLut;
+uniform float uExp, uCon, uHi, uSh, uWh, uBl, uTemp, uTint, uVib, uSat;
+uniform float uTexture, uClarity, uDehaze, uSharp, uNrL, uNrC, uBW, uHslOn, uCurveOn;
+uniform float uHslH[8]; uniform float uHslS[8]; uniform float uHslL[8];
+uniform vec3 uGr[4]; uniform float uGrBlend, uGrBal;
+const float HC[9] = float[9](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 275.0, 315.0, 360.0);
+vec3 rgb2hsv(vec3 c){ vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y); float e = 1.0e-10;
+  return vec3(abs(q.z + (q.w - q.y)/(6.0*d + e)), d/(q.x + e), q.x); }
+vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0))*6.0 - 3.0);
+  return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
+vec3 hueRGB(float h){ return clamp(abs(mod(h/60.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); }
+float lutAt(float x, int ch){ vec4 v = texture(uLut, vec2(clamp(x,0.0,1.0)*(255.0/256.0) + 0.5/256.0, 0.5));
+  return ch==0 ? v.r : ch==1 ? v.g : ch==2 ? v.b : v.a; }
+vec3 gradeOne(vec3 p, vec3 g, float w){
+  if(w <= 0.0) return p;
+  vec3 t = hueRGB(g.x); t -= luma(t);
+  p += t*g.y*0.32*w; p += g.z*0.22*w; return p; }
+void main(){
+  vec3 c = texture(uTex, vUv).rgb; vec3 bs = texture(uBS, vUv).rgb; vec3 bm = texture(uBM, vUv).rgb; vec3 bl = texture(uBL, vUv).rgb;
+  vec3 orig = c;
+  if(uNrL > 0.0){ float e = length(c - bs); c = mix(c, bs, uNrL*exp(-e*9.0)); }
+  if(uNrC > 0.0){ c = mix(c, vec3(luma(c)) + (bm - luma(bm)), uNrC*0.9); }
+  c += luma(orig - bs)*uSharp*2.5;
+  c += luma(bs - bm)*uTexture*1.6;
+  vec3 lin = toLin(c)*wbMul(uTemp, uTint)*exp2(uExp);
+  if(uDehaze > 0.0){ vec3 b2 = toLin(bl); float dc = min(min(b2.r, b2.g), b2.b);
+    float A = 0.92; float t = max(1.0 - uDehaze*0.9*dc/A, 0.2); lin = max((lin - A*(1.0 - t))/t, 0.0); }
+  else if(uDehaze < 0.0){ lin = mix(lin, vec3(0.72), -uDehaze*0.45); }
+  vec3 p = toGam(lin);
+  float L = luma(p);
+  float Ln = toneL(L, uCon, uHi, uSh, uWh, uBl);
+  float det = luma(c) - luma(bl);
+  float wm = 1.0 - pow(abs(clamp(Ln, 0.0, 1.0)*2.0 - 1.0), 2.0);
+  Ln += uClarity*0.7*det*wm;
+  p = L > 1e-4 ? p*clamp(Ln/L, 0.0, 10.0) : p + Ln;
+  float mx = max(p.r, max(p.g, p.b)), mn = min(p.r, min(p.g, p.b));
+  float sat0 = (mx - mn)/max(mx, 1e-4);
+  float Lp = luma(p);
+  if(uVib != 0.0){ float h = rgb2hsv(clamp(p, 0.0, 1.0)).x*360.0;
+    float skin = smoothstep(5.0, 20.0, h)*(1.0 - smoothstep(45.0, 60.0, h));
+    float v = uVib*(1.0 - sat0)*(uVib > 0.0 ? 1.0 - 0.55*skin : 1.0);
+    p = Lp + (p - Lp)*(1.0 + v); }
+  p = Lp + (p - Lp)*(1.0 + uSat);
+  if(uHslOn > 0.5){
+    vec3 hsv = rgb2hsv(clamp(p, 0.0, 1.0)); float h = hsv.x*360.0; int i = 0;
+    for(int k=0;k<8;k++){ if(h >= HC[k] && h < HC[k+1]) i = k; }
+    float t = smoothstep(0.0, 1.0, (h - HC[i])/(HC[i+1] - HC[i])); int j = i == 7 ? 0 : i + 1;
+    float dH = mix(uHslH[i], uHslH[j], t), dS = mix(uHslS[i], uHslS[j], t), dL = mix(uHslL[i], uHslL[j], t);
+    float w = smoothstep(0.03, 0.25, sat0);
+    hsv.x = fract(hsv.x + dH*w*30.0/360.0 + 1.0);
+    hsv.y = clamp(hsv.y*(1.0 + dS*w), 0.0, 1.0);
+    p = hsv2rgb(hsv)*(1.0 + dL*(uBW > 0.5 ? 0.9 : 0.5)*w);
+  }
+  if(uBW > 0.5) p = vec3(luma(p));
+  float Lg = clamp(luma(p), 0.0, 1.0);
+  float piv = 0.5 - uGrBal*0.3, bw = 0.12 + uGrBlend*0.38;
+  float wSh = 1.0 - smoothstep(max(piv - bw, 0.0) - 0.15, piv + bw*0.4, Lg);
+  float wHi = smoothstep(piv - bw*0.4, min(piv + bw, 1.0) + 0.15, Lg);
+  float wMid = clamp(1.0 - wSh - wHi, 0.0, 1.0);
+  p = gradeOne(p, uGr[0], wSh); p = gradeOne(p, uGr[1], wMid); p = gradeOne(p, uGr[2], wHi); p = gradeOne(p, uGr[3], 1.0);
+  p = clamp(p, 0.0, 1.0);
+  if(uCurveOn > 0.5) p = vec3(lutAt(lutAt(p.r,3),0), lutAt(lutAt(p.g,3),1), lutAt(lutAt(p.b,3),2));
+  o = vec4(p, 1.0); }`;
+
+const FS_LOCAL = GLSL_HEAD + `
+uniform sampler2D uTex, uMask, uBL; uniform float uInv; uniform float uA[8];
+void main(){
+  vec4 c = texture(uTex, vUv); float m = texture(uMask, vUv).a; if(uInv > 0.5) m = 1.0 - m;
+  if(m < 0.002){ o = c; return; }
+  vec3 lin = toLin(c.rgb)*wbMul(uA[5], uA[6])*exp2(uA[0]);
+  vec3 p = toGam(lin); float L = luma(p);
+  float Ln = toneL(L, uA[1], uA[2], uA[3], 0.0, 0.0);
+  float det = luma(c.rgb) - luma(texture(uBL, vUv).rgb);
+  float wm = 1.0 - pow(abs(clamp(Ln, 0.0, 1.0)*2.0 - 1.0), 2.0);
+  Ln += uA[4]*0.7*det*wm;
+  p = L > 1e-4 ? p*clamp(Ln/L, 0.0, 10.0) : p + Ln;
+  float Lp = luma(p); p = Lp + (p - Lp)*(1.0 + uA[7]);
+  o = vec4(mix(c.rgb, clamp(p, 0.0, 1.0), m), 1.0); }`;
+
+const FS_OUT = GLSL_HEAD + `
+uniform sampler2D uTex, uSrc, uMask;
+uniform float uCanvasH; uniform vec4 uFR; uniform vec4 uCrop; uniform vec2 uOri; uniform float uAngle;
+uniform float uRot; uniform vec2 uFlip; uniform vec2 uPersp;
+uniform float uBypass, uShowMask, uMaskInv, uFx, uOutside; uniform vec4 uVig; uniform vec3 uGrain; uniform vec3 uBg;
+float hash(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0 - 2.0*f);
+  return mix(mix(hash(i), hash(i + vec2(1,0)), u.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x), u.y); }
+bool f2uv(vec2 f, out vec2 uv){
+  vec2 q = vec2(uCrop.x*uOri.x + (f.x - 0.5)*uCrop.z*uOri.x, uCrop.y*uOri.y + (f.y - 0.5)*uCrop.w*uOri.y);
+  float cs = cos(-uAngle), sn = sin(-uAngle);
+  vec2 on = vec2(cs*q.x - sn*q.y, sn*q.x + cs*q.y)/uOri;
+  float d = 1.0 + uPersp.x*on.y + uPersp.y*on.x; on = on/d + 0.5;
+  if(uFlip.x > 0.5) on.x = 1.0 - on.x; if(uFlip.y > 0.5) on.y = 1.0 - on.y;
+  vec2 a = on; int r = int(uRot + 0.5);
+  for(int i=0;i<4;i++){ if(i >= r) break; a = vec2(a.y, 1.0 - a.x); }
+  uv = a; return a.x >= 0.0 && a.y >= 0.0 && a.x <= 1.0 && a.y <= 1.0; }
+void main(){
+  vec2 sp = vec2(gl_FragCoord.x, uCanvasH - gl_FragCoord.y);
+  vec2 f = (sp - uFR.xy)/uFR.zw;
+  if(f.x < 0.0 || f.y < 0.0 || f.x > 1.0 || f.y > 1.0){ o = vec4(uBg, 1.0); return; }
+  vec2 uv; if(!f2uv(f, uv)){ o = vec4(uBg*uOutside, 1.0); return; }
+  vec3 c = uBypass > 0.5 ? texture(uSrc, uv).rgb : texture(uTex, uv).rgb;
+  if(uBypass < 0.5 && uFx > 0.5){
+    float asp = uFR.z/uFR.w;
+    if(uVig.x != 0.0){
+      vec2 d = (f - 0.5)*2.0; d.x *= mix(1.0, asp, uVig.w); d /= mix(1.0, max(asp, 1.0), uVig.w);
+      float dist = length(d)*0.7071; float st = mix(0.05, 0.85, uVig.y);
+      float v = smoothstep(st, st + 0.04 + uVig.z*0.9, dist);
+      c = uVig.x < 0.0 ? c*(1.0 + uVig.x*v) : mix(c, vec3(1.0), uVig.x*v*0.8); }
+    if(uGrain.x > 0.0){
+      vec2 gp = f*vec2(asp, 1.0)*mix(1100.0, 160.0, uGrain.y);
+      float n = vnoise(gp) - 0.5; float n2 = vnoise(gp*2.7 + 13.1) - 0.5;
+      n = mix(n, n*0.6 + n2*0.8, uGrain.z);
+      float Lc = luma(c); float w = 0.35 + 0.65*(1.0 - pow(abs(Lc*2.0 - 1.0), 2.0));
+      c += n*uGrain.x*0.32*w; } }
+  if(uShowMask > 0.5){ float m = texture(uMask, uv).a; if(uMaskInv > 0.5) m = 1.0 - m; c = mix(c, vec3(0.95, 0.22, 0.38), m*0.55); }
+  o = vec4(clamp(c, 0.0, 1.0), 1.0); }`;
+
+/* ---------- renderer ---------- */
+class Renderer {
+  constructor(canvas, opts = {}) {
+    this.canvas = canvas;
+    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: !!opts.preserve, powerPreference: 'high-performance' });
+    if (!gl) throw new Error('NO_WEBGL2');
+    this.gl = gl;
+    this.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    this.p = {
+      down: this.prog(FS_DOWN), blur: this.prog(FS_BLUR), heal: this.prog(FS_HEAL),
+      dev: this.prog(FS_DEV), local: this.prog(FS_LOCAL), out: this.prog(FS_OUT)
+    };
+    this.vao = gl.createVertexArray(); gl.bindVertexArray(this.vao);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.targets = {};
+    this.lut = this.tex(256, 1, null);
+    this.emptyMask = this.tex(1, 1, new Uint8Array([0, 0, 0, 0]));
+    this.masks = new Map();
+    this.healKey = null; this.procKey = null;
+    this.W = 0; this.H = 0;
+  }
+  prog(fs) {
+    const gl = this.gl;
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+    gl.bindAttribLocation(p, 0, 'aPos'); gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const set = {}; let unit = 0;
+    const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) {
+      const info = gl.getActiveUniform(p, i), name = info.name.replace(/\[0\]$/, ''), loc = gl.getUniformLocation(p, info.name), t = info.type;
+      if (t === gl.SAMPLER_2D) { const u = unit++; set[name] = v => { gl.activeTexture(gl.TEXTURE0 + u); gl.bindTexture(gl.TEXTURE_2D, v); gl.uniform1i(loc, u); }; }
+      else if (t === gl.FLOAT) set[name] = info.size > 1 ? v => gl.uniform1fv(loc, v) : v => gl.uniform1f(loc, v);
+      else if (t === gl.FLOAT_VEC2) set[name] = v => gl.uniform2fv(loc, v);
+      else if (t === gl.FLOAT_VEC3) set[name] = v => gl.uniform3fv(loc, v);
+      else if (t === gl.FLOAT_VEC4) set[name] = v => gl.uniform4fv(loc, v);
+      else if (t === gl.INT) set[name] = v => gl.uniform1i(loc, v);
+    }
+    return { p, set };
+  }
+  tex(w, h, data) {
+    const gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    return t;
+  }
+  target(name, w, h) {
+    let t = this.targets[name];
+    if (t && t.w === w && t.h === h) return t;
+    const gl = this.gl;
+    if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); }
+    const tex = this.tex(w, h, null), fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    t = this.targets[name] = { tex, fb, w, h };
+    return t;
+  }
+  pass(pr, tgt, u, vw, vh) {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgt ? tgt.fb : null);
+    gl.viewport(0, 0, tgt ? tgt.w : vw, tgt ? tgt.h : vh);
+    gl.useProgram(pr.p);
+    for (const k in u) { const s = pr.set[k]; if (s) s(u[k]); }
+    gl.bindVertexArray(this.vao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  blurTo(tex, w, h, targetLong, sigma, name) {
+    const s = Math.min(1, targetLong / Math.max(w, h));
+    const tw = Math.max(1, Math.round(w * s)), th = Math.max(1, Math.round(h * s));
+    let cur = tex, cw = w, ch = h, i = 0;
+    while (cw / 2 >= tw && ch / 2 >= th && i < 8) {
+      const nw = Math.max(tw, Math.floor(cw / 2)), nh = Math.max(th, Math.floor(ch / 2));
+      const t = this.target(name + '_d' + i, nw, nh);
+      this.pass(this.p.down, t, { uTex: cur, uTexel: [1 / cw, 1 / ch] });
+      cur = t.tex; cw = nw; ch = nh; i++;
+    }
+    if (cw !== tw || ch !== th) {
+      const t = this.target(name + '_r', tw, th);
+      this.pass(this.p.down, t, { uTex: cur, uTexel: [1 / cw, 1 / ch] });
+      cur = t.tex;
+    }
+    const a = this.target(name + '_a', tw, th), b = this.target(name + '_b', tw, th);
+    this.pass(this.p.blur, a, { uTex: cur, uDir: [1 / tw, 0], uSigma: sigma });
+    this.pass(this.p.blur, b, { uTex: a.tex, uDir: [0, 1 / th], uSigma: sigma });
+    return b.tex;
+  }
+  setSource(img) {
+    const gl = this.gl;
+    const w = img.width, h = img.height;
+    if (this.src) gl.deleteTexture(this.src);
+    this.src = this.tex(w, h, null);
+    gl.bindTexture(gl.TEXTURE_2D, this.src);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    this.W = w; this.H = h;
+    this.srcLow = this.blurTo(this.src, w, h, 512, 2.5, 'srcLow');
+    this.healKey = null; this.procKey = null;
+  }
+  setLut(curve) {
+    const gl = this.gl, ch = ['r', 'g', 'b', 'm'].map(k => curveSamples(curve[k]));
+    const d = new Uint8Array(256 * 4);
+    for (let i = 0; i < 256; i++) for (let c = 0; c < 4; c++) d[i * 4 + c] = Math.round(ch[c][i] * 255);
+    gl.bindTexture(gl.TEXTURE_2D, this.lut);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.RGBA, gl.UNSIGNED_BYTE, d);
+    this.procKey = null;
+  }
+  setMask(id, canvas) {
+    const gl = this.gl; let t = this.masks.get(id);
+    if (!t) { t = this.tex(1, 1, null); this.masks.set(id, t); }
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    this.procKey = null;
+  }
+  dropMask(id) { const t = this.masks.get(id); if (t) { this.gl.deleteTexture(t); this.masks.delete(id); } this.procKey = null; }
+  clearMasks() { for (const id of [...this.masks.keys()]) this.dropMask(id); }
+
+  ensureHeal(S) {
+    const key = JSON.stringify(S.spots);
+    if (key === this.healKey) return;
+    this.healKey = key; this.procKey = null;
+    const W = this.W, H = this.H, L = Math.max(W, H);
+    let cur = this.src;
+    const spots = S.spots;
+    for (let b = 0, k = 0; b < spots.length; b += 32, k++) {
+      const n = Math.min(32, spots.length - b), A = new Float32Array(128), B = new Float32Array(128);
+      for (let i = 0; i < n; i++) {
+        const s = spots[b + i];
+        A.set([s.x, s.y, s.r * L, s.f], i * 4);
+        B.set([s.sx, s.sy, s.mode === 'clone' ? 1 : 0, s.o == null ? 1 : s.o], i * 4);
+      }
+      const t = this.target('heal' + (k % 2), W, H);
+      this.pass(this.p.heal, t, { uTex: cur, uLow: this.srcLow, uSize: [W, H], uN: n, uSpot: A, uSpotS: B });
+      cur = t.tex;
+    }
+    this.healed = cur;
+    this.bS = this.blurTo(cur, W, H, L, Math.max(0.8, Math.min(3.5, L / 1500)), 'bS');
+    this.bM = this.blurTo(cur, W, H, 1024, 2.0, 'bM');
+    this.bL = this.blurTo(cur, W, H, 384, 4.5, 'bL');
+  }
+  process(S) {
+    this.ensureHeal(S);
+    const key = devKey(S) + '|' + (S._mv || 0);
+    if (key === this.procKey && this.final) return;
+    this.procKey = key;
+    const W = this.W, H = this.H, n = v => v / 100;
+    const hsl = S.hsl, hslOn = hsl.h.some(v => v) || hsl.s.some(v => v) || hsl.l.some(v => v);
+    const g = S.grade, gr = new Float32Array([
+      g.sh.h, n(g.sh.s), n(g.sh.l), g.mid.h, n(g.mid.s), n(g.mid.l), g.hi.h, n(g.hi.s), n(g.hi.l), g.gl.h, n(g.gl.s), n(g.gl.l)]);
+    const curveOn = !(isIdentityCurve(S.curve.m) && isIdentityCurve(S.curve.r) && isIdentityCurve(S.curve.g) && isIdentityCurve(S.curve.b));
+    const dev = this.target('dev', W, H);
+    this.pass(this.p.dev, dev, {
+      uTex: this.healed, uBS: this.bS, uBM: this.bM, uBL: this.bL, uLut: this.lut,
+      uExp: S.exposure, uCon: n(S.contrast), uHi: n(S.highlights), uSh: n(S.shadows), uWh: n(S.whites), uBl: n(S.blacks),
+      uTemp: n(S.temp), uTint: n(S.tint), uVib: n(S.vibrance), uSat: n(S.saturation),
+      uTexture: n(S.texture), uClarity: n(S.clarity), uDehaze: n(S.dehaze), uSharp: n(S.sharpen), uNrL: n(S.nrLuma), uNrC: n(S.nrColor),
+      uBW: S.bw ? 1 : 0, uHslOn: hslOn ? 1 : 0, uCurveOn: curveOn ? 1 : 0,
+      uHslH: new Float32Array(hsl.h.map(n)), uHslS: new Float32Array(hsl.s.map(n)), uHslL: new Float32Array(hsl.l.map(n)),
+      uGr: gr, uGrBlend: n(g.blend), uGrBal: n(g.balance)
+    });
+    let cur = dev, flip = 0;
+    for (const m of S.masks) {
+      const t = this.masks.get(m.id); if (!t || m.hidden) continue;
+      const a = m.adj;
+      if (!(a.exposure || a.contrast || a.highlights || a.shadows || a.clarity || a.temp || a.tint || a.saturation)) continue;
+      const tgt = this.target(flip ? 'pong' : 'ping', W, H); flip ^= 1;
+      this.pass(this.p.local, tgt, { uTex: cur.tex, uMask: t, uBL: this.bL, uInv: m.inv ? 1 : 0,
+        uA: new Float32Array([a.exposure, n(a.contrast), n(a.highlights), n(a.shadows), n(a.clarity), n(a.temp), n(a.tint), n(a.saturation)]) });
+      cur = tgt;
+    }
+    this.final = cur;
+  }
+  /* draw final image through crop/geometry into canvas (tgt=null) or a target */
+  output(S, vp, tgt) {
+    const gl = this.gl, g = S.geo;
+    const [Wo, Ho] = orientedSize(this.W, this.H, g.rot90);
+    const ft = vp.bypass ? null : this.final.tex;
+    if (ft) {
+      gl.bindTexture(gl.TEXTURE_2D, ft);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    }
+    const sm = vp.showMask ? this.masks.get(vp.showMask.id) : null;
+    const vg = S.vignette, gn = S.grain, c = vp.crop;
+    const w = tgt ? tgt.w : this.canvas.width, h = tgt ? tgt.h : this.canvas.height;
+    this.pass(this.p.out, tgt, {
+      uTex: ft || this.src, uSrc: this.src, uMask: sm || this.emptyMask,
+      uCanvasH: h, uFR: vp.fr, uCrop: [c.cx, c.cy, c.w, c.h], uOri: [Wo, Ho], uAngle: g.angle * Math.PI / 180,
+      uRot: g.rot90, uFlip: [g.flipH ? 1 : 0, g.flipV ? 1 : 0], uPersp: [g.pv * PERSP_K, g.ph * PERSP_K],
+      uBypass: vp.bypass ? 1 : 0, uShowMask: sm ? 1 : 0, uMaskInv: sm && vp.showMask.inv ? 1 : 0, uFx: vp.fx === false ? 0 : 1,
+      uOutside: vp.outside == null ? 0.55 : vp.outside,
+      uVig: [vg.amount / 100, vg.mid / 100, vg.feather / 100, vg.round / 100], uGrain: [gn.amount / 100, gn.size / 100, gn.rough / 100],
+      uBg: vp.bg || [0.067, 0.071, 0.078]
+    }, w, h);
+    if (ft) { gl.bindTexture(gl.TEXTURE_2D, ft); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); }
+  }
+  /* render cropped result at w×h and read back as an RGBA canvas (top row first) */
+  toCanvas(S, w, h) {
+    this.process(S);
+    const t = this.target('readback', w, h);
+    this.output(S, { fr: [0, 0, w, h], crop: S.geo.crop, bg: [0, 0, 0] }, t);
+    const gl = this.gl, px = new Uint8Array(w * h * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d'), id = ctx.createImageData(w, h), row = w * 4;
+    for (let y = 0; y < h; y++) id.data.set(px.subarray((h - 1 - y) * row, (h - y) * row), y * row);
+    ctx.putImageData(id, 0, 0);
+    return cv;
+  }
+  histogram(S) {
+    this.process(S);
+    const g = S.geo, [Wo, Ho] = orientedSize(this.W, this.H, g.rot90);
+    const ar = (S.geo.crop.w * Wo) / (S.geo.crop.h * Ho);
+    const w = ar >= 1 ? 192 : Math.max(16, Math.round(192 * ar)), h = ar >= 1 ? Math.max(16, Math.round(192 / ar)) : 192;
+    const t = this.target('hist', w, h);
+    this.output(S, { fr: [0, 0, w, h], crop: S.geo.crop }, t);
+    const gl = this.gl, px = new Uint8Array(w * h * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const hr = new Uint32Array(256), hg = new Uint32Array(256), hb = new Uint32Array(256);
+    for (let i = 0; i < px.length; i += 4) { hr[px[i]]++; hg[px[i + 1]]++; hb[px[i + 2]]++; }
+    return [hr, hg, hb];
+  }
+  destroy() { const e = this.gl.getExtension('WEBGL_lose_context'); if (e) e.loseContext(); }
+}
+
+/* key of everything that changes processed pixels (not crop/geometry or spots) */
+function devKey(S) {
+  const { geo, spots, masks, _mv, ...rest } = S;
+  return JSON.stringify(rest) + JSON.stringify(masks.map(m => [m.id, m.inv, m.hidden, m.adj]));
+}
+
+/* ================= ແສງສີ — app ================= */
+'use strict';
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/* ---------- settings model ---------- */
+const HSL_BANDS = [
+  { k: 'red', lo: 'ແດງ', c: '#e5484d' }, { k: 'orange', lo: 'ສົ້ມ', c: '#f08a3c' }, { k: 'yellow', lo: 'ເຫຼືອງ', c: '#e8c547' },
+  { k: 'green', lo: 'ຂຽວ', c: '#5dbb63' }, { k: 'aqua', lo: 'ຟ້າອ່ອນ', c: '#43c3c9' }, { k: 'blue', lo: 'ຟ້າ', c: '#4a7fe0' },
+  { k: 'purple', lo: 'ມ່ວງ', c: '#8e63d8' }, { k: 'magenta', lo: 'ບົວ', c: '#d65cb5' }];
+const ID = [[0, 0], [1, 1]];
+function defaults() {
+  return {
+    v: 1, exposure: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0,
+    temp: 0, tint: 0, vibrance: 0, saturation: 0, bw: false,
+    hsl: { h: [0, 0, 0, 0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0, 0, 0, 0], l: [0, 0, 0, 0, 0, 0, 0, 0] },
+    grade: { sh: { h: 220, s: 0, l: 0 }, mid: { h: 40, s: 0, l: 0 }, hi: { h: 45, s: 0, l: 0 }, gl: { h: 30, s: 0, l: 0 }, blend: 50, balance: 0 },
+    curve: { m: clone(ID), r: clone(ID), g: clone(ID), b: clone(ID) },
+    texture: 0, clarity: 0, dehaze: 0,
+    vignette: { amount: 0, mid: 50, feather: 50, round: 0 }, grain: { amount: 0, size: 25, rough: 50 },
+    sharpen: 0, nrLuma: 0, nrColor: 0,
+    geo: { angle: 0, rot90: 0, flipH: false, flipV: false, pv: 0, ph: 0, aspect: 'orig', auto: true, crop: { cx: 0, cy: 0, w: 1, h: 1 } },
+    masks: [], spots: []
+  };
+}
+const DEV_SKIP = new Set(['geo', 'masks', 'spots', 'v', '_mv']);
+function getPath(o, p) { return p.split('.').reduce((a, k) => a == null ? a : a[k], o); }
+function setPath(o, p, v) { const ks = p.split('.'); let a = o; for (let i = 0; i < ks.length - 1; i++) a = a[ks[i]]; a[ks[ks.length - 1]] = v; }
+// flatten develop settings into {path:value}, numbers/bools/curves only
+function flatDev(S) {
+  const out = {};
+  const walk = (o, pre) => {
+    for (const k in o) {
+      if (!pre && DEV_SKIP.has(k)) continue;
+      const v = o[k], p = pre ? pre + '.' + k : k;
+      if (pre === 'curve') out[p] = v;
+      else if (Array.isArray(v)) v.forEach((x, i) => out[p + '.' + i] = x);
+      else if (v && typeof v === 'object') walk(v, p);
+      else out[p] = v;
+    }
+  };
+  walk(S, '');
+  return out;
+}
+function devDiff(S) {
+  const a = flatDev(S), d = flatDev(defaults()), out = {};
+  for (const k in a) if (JSON.stringify(a[k]) !== JSON.stringify(d[k])) out[k] = a[k];
+  return out;
+}
+function resetDev(S) {
+  const d = defaults();
+  for (const k in d) if (!DEV_SKIP.has(k)) S[k] = d[k];
+}
+function applyFlat(S, flat, amt = 1) {
+  const d = flatDev(defaults());
+  for (const p in flat) {
+    const v = flat[p];
+    if (p.startsWith('curve.')) {
+      if (amt <= 0.01) continue;
+      setPath(S, p, v.map(([x, y]) => [x, +(x + (y - x) * amt).toFixed(4)]));
+    } else if (typeof v === 'number' && !/\.h$/.test(p) || /^hsl\.h\./.test(p)) {
+      const base = typeof d[p] === 'number' ? d[p] : 0;
+      setPath(S, p, +(base + (v - base) * amt).toFixed(3));
+    } else setPath(S, p, v);
+  }
+}
+
+/* ---------- built-in presets (own looks) ---------- */
+const FADE = [[0, 0.07], [0.25, 0.25], [0.75, 0.77], [1, 0.95]];
+const SOFT_S = [[0, 0], [0.25, 0.21], [0.75, 0.8], [1, 1]];
+const PRESETS = [
+  { id: 'p-vivid', name: 'ສົດໃສ', s: { contrast: 15, highlights: -20, shadows: 15, vibrance: 30, saturation: 5, clarity: 10 } },
+  { id: 'p-room', name: 'ພາຍໃນຫ້ອງ', s: { exposure: 0.35, highlights: -40, shadows: 45, whites: 15, blacks: -5, temp: 6, vibrance: 12, clarity: 8, texture: 10 } },
+  { id: 'p-land', name: 'ທິວທັດ', s: { highlights: -35, shadows: 20, dehaze: 15, clarity: 15, vibrance: 25, 'hsl.s.5': 15, 'hsl.l.5': -15, 'hsl.s.3': 10, 'curve.m': SOFT_S } },
+  { id: 'p-warm', name: 'ອົບອຸ່ນ', s: { temp: 18, tint: 4, contrast: 8, vibrance: 15, 'grade.hi.h': 45, 'grade.hi.s': 20, 'grade.sh.h': 30, 'grade.sh.s': 10 } },
+  { id: 'p-cool', name: 'ເຢັນສະບາຍ', s: { temp: -15, highlights: -10, vibrance: 10, 'grade.sh.h': 210, 'grade.sh.s': 15 } },
+  { id: 'p-portrait', name: 'ຜິວນວນ', s: { temp: 4, highlights: -15, shadows: 10, texture: -15, clarity: -5, vibrance: 8, 'hsl.s.1': -8, 'hsl.l.1': 10, 'hsl.l.0': 5 } },
+  { id: 'p-film', name: 'ຟິມເກົ່າ', s: { temp: 6, saturation: -15, 'curve.m': FADE, 'grain.amount': 25, 'grade.sh.h': 200, 'grade.sh.s': 12, 'grade.hi.h': 40, 'grade.hi.s': 15 } },
+  { id: 'p-teal', name: 'ສົ້ມ-ຟ້າ', s: { contrast: 15, saturation: -5, 'grade.sh.h': 195, 'grade.sh.s': 30, 'grade.hi.h': 35, 'grade.hi.s': 25, 'hsl.s.1': 10, 'hsl.h.5': -10 } },
+  { id: 'p-food', name: 'ອາຫານ', s: { exposure: 0.15, temp: 10, shadows: 15, vibrance: 20, clarity: 10, texture: 15 } },
+  { id: 'p-night', name: 'ກາງຄືນ', s: { exposure: 0.2, highlights: -45, shadows: 30, temp: -8, vibrance: 15, nrLuma: 25, nrColor: 30 } },
+  { id: 'p-bw', name: 'ຂາວດຳ ຄົມ', s: { bw: true, contrast: 35, whites: 15, blacks: -15, clarity: 20, 'grain.amount': 10, 'vignette.amount': -15 } },
+  { id: 'p-bwsoft', name: 'ຂາວດຳ ອ່ອນ', s: { bw: true, contrast: -10, shadows: 20, 'curve.m': [[0, 0.05], [0.5, 0.52], [1, 0.97]], 'grain.amount': 15 } }
+];
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('saengsi.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('saengsi.' + k, JSON.stringify(v)); } catch (e) { } }
+};
+
+/* ---------- storage (IndexedDB, memory fallback) ---------- */
+const DB = {
+  db: null, mem: { meta: new Map(), blob: new Map() },
+  async open() {
+    try {
+      this.db = await new Promise((res, rej) => {
+        const r = indexedDB.open('saengsi', 1);
+        r.onupgradeneeded = () => { r.result.createObjectStore('meta', { keyPath: 'id' }); r.result.createObjectStore('blob'); };
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      });
+    } catch (e) { this.db = null; }
+  },
+  tx(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(store, mode), s = t.objectStore(store), r = fn(s);
+      t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error);
+    });
+  },
+  async allMeta() { if (!this.db) return [...this.mem.meta.values()]; return await this.tx('meta', 'readonly', s => s.getAll()) || []; },
+  async putMeta(m) { if (!this.db) { this.mem.meta.set(m.id, m); return; } try { await this.tx('meta', 'readwrite', s => s.put(m)); } catch (e) { this.mem.meta.set(m.id, m); } },
+  async putBlob(id, b) { if (!this.db) { this.mem.blob.set(id, b); return; } try { await this.tx('blob', 'readwrite', s => s.put(b, id)); } catch (e) { this.mem.blob.set(id, b); } },
+  async getBlob(id) { if (this.mem.blob.has(id)) return this.mem.blob.get(id); if (!this.db) return null; return await this.tx('blob', 'readonly', s => s.get(id)); },
+  async del(id) { this.mem.meta.delete(id); this.mem.blob.delete(id); if (!this.db) return; await this.tx('meta', 'readwrite', s => s.delete(id)); await this.tx('blob', 'readwrite', s => s.delete(id)); }
+};
+
+/* ---------- image decode ---------- */
+async function decode(blob) {
+  try { return await createImageBitmap(blob, { imageOrientation: 'from-image' }); }
+  catch (e) {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.src = url; await img.decode(); URL.revokeObjectURL(url); return img;
+  }
+}
+function scaledCanvas(img, maxLong) {
+  const w0 = img.width, h0 = img.height, s = Math.min(1, maxLong / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * s)), h = Math.max(1, Math.round(h0 * s));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+  x.drawImage(img, 0, 0, w, h);
+  return c;
+}
+
+/* ---------- UI helpers ---------- */
+function toast(msg, ms = 2200) {
+  const r = $('#toastRoot'); r.innerHTML = '';
+  const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; r.appendChild(d);
+  clearTimeout(toast.t); toast.t = setTimeout(() => d.remove(), ms);
+}
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in attrs) {
+    const v = attrs[k];
+    if (k === 'class') e.className = v; else if (k === 'style') e.style.cssText = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, ''); else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+const ICON = {
+  presets: '<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/>',
+  light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  color: '<path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"/>',
+  mix: '<circle cx="9" cy="9" r="5"/><circle cx="15" cy="9" r="5"/><circle cx="12" cy="15" r="5"/>',
+  grade: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 010 18z" fill="currentColor" opacity=".3" stroke="none"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/>',
+  curve: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M5 19C10 18 11 6 19 5"/>',
+  effects: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="5" opacity=".5"/>',
+  detail: '<path d="M3 12h3l3-7 4 14 3-7h5"/>',
+  crop: '<path d="M6 2v16h16"/><path d="M2 6h16v16"/>',
+  mask: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18" /><path d="M12 7h5M12 11h7M12 15h6" opacity=".6"/>',
+  heal: '<path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/>',
+  linear: '<path d="M3 8h18M3 12h18M3 16h18" opacity=".5"/><path d="M12 4v16"/>',
+  radial: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  brush: '<path d="M18 3l3 3-9 9-3-3z"/><path d="M9 12c-3 0-5 2-5 5 0 1.5-1 3-2 4 4 0 8-1 9-5"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
+};
+const svgI = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
+function iconEl(k) { const s = document.createElement('span'); s.innerHTML = svgI(k); return s.firstChild; }
+
+/* ---------- app state ---------- */
+const st = {
+  metas: [], cur: null, S: null, R: null, img: null, small: null,
+  tab: 'light', selMask: null, hslBand: 0, gradeRegion: 'sh', curveCh: 'm',
+  hist: [], hi: -1, view: { z: 1, px: 0, py: 0 }, bypass: false, showMask: true,
+  brush: LS.get('brush', { size: 0.08, feather: 0.6, flow: 0.6, erase: false }),
+  heal: { mode: 'clone' === LS.get('healMode', 'heal') ? 'clone' : 'heal', size: LS.get('healSize', 0.03) }, selSpot: -1,
+  selecting: false, selected: new Set(), lastPreset: null, copied: LS.get('copied', null),
+  maskCv: new Map(), dpr: 1
+};
+
+/* ================= LIBRARY ================= */
+async function loadLibrary() {
+  st.metas = (await DB.allMeta()).sort((a, b) => b.created - a.created);
+  renderGrid();
+}
+function renderGrid() {
+  const g = $('#grid'); g.innerHTML = '';
+  $('#libCount').textContent = st.selecting ? `ເລືອກແລ້ວ ${st.selected.size} ຮູບ` : `${st.metas.length} ຮູບ`;
+  if (!st.metas.length) {
+    g.append(h('div', { class: 'empty' }, 'ຍັງບໍ່ມີຮູບ. ກົດ "ເພີ່ມຮູບ" ເພື່ອເລືອກຮູບຈາກຄັງຮູບໃນມືຖື.'));
+  }
+  for (const m of st.metas) {
+    const edited = m.settings && Object.keys(devDiff(m.settings)).length + (m.settings.masks || []).length + (m.settings.spots || []).length > 0;
+    const t = h('button', { class: 'tile' + (st.selected.has(m.id) ? ' sel' : ''), 'aria-label': m.name },
+      h('img', { src: m.thumb || '', alt: '' }),
+      edited ? h('span', { class: 'badge' }, 'ແກ້ແລ້ວ') : null,
+      st.selecting ? h('span', { class: 'check' }) : null);
+    let lp = null;
+    t.addEventListener('pointerdown', () => { lp = setTimeout(() => { lp = 'done'; if (!st.selecting) toggleSelecting(true); toggleSel(m.id); }, 500); });
+    const cancel = () => { if (lp && lp !== 'done') clearTimeout(lp); };
+    t.addEventListener('pointerup', cancel); t.addEventListener('pointerleave', cancel); t.addEventListener('pointercancel', cancel);
+    t.addEventListener('click', () => { if (lp === 'done') { lp = null; return; } st.selecting ? toggleSel(m.id) : openEditor(m.id); });
+    g.append(t);
+  }
+  $('#batchbar').hidden = !st.selecting;
+  $('#btnAdd').hidden = st.selecting;
+  $('#btnSelect').textContent = st.selecting ? 'ແລ້ວໆ' : 'ເລືອກ';
+  ['#bPreset', '#bPaste', '#bExport', '#bDelete'].forEach(s => $(s).disabled = !st.selected.size);
+  $('#bPaste').disabled = !st.selected.size || !st.copied;
+}
+function toggleSelecting(on) { st.selecting = on; if (!on) st.selected.clear(); renderGrid(); }
+function toggleSel(id) { st.selected.has(id) ? st.selected.delete(id) : st.selected.add(id); renderGrid(); }
+
+async function addFiles(files) {
+  const list = [...files].filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|avif)$/i.test(f.name));
+  if (!list.length) return;
+  toast(`ກຳລັງເພີ່ມ ${list.length} ຮູບ…`, 6000);
+  let ok = 0;
+  for (const f of list) {
+    try {
+      const img = await decode(f);
+      const th = scaledCanvas(img, 360);
+      const id = uid();
+      const meta = { id, name: f.name.replace(/\.[^.]+$/, ''), w: img.width, h: img.height, created: Date.now() + ok, settings: defaults(), thumb: th.toDataURL('image/jpeg', 0.82) };
+      await DB.putBlob(id, f); await DB.putMeta(meta); ok++;
+      if (img.close) img.close();
+    } catch (e) { toast(`ເປີດ ${f.name} ບໍ່ໄດ້ (ຮູບແບບໄຟລ໌ນີ້ browser ບໍ່ຮອງຮັບ)`, 3500); }
+  }
+  await loadLibrary();
+  if (ok) toast(`ເພີ່ມແລ້ວ ${ok} ຮູບ`);
+}
+
+/* sample photo so the app opens in a working state */
+async function makeSample() {
+  const W = 1800, H = 1200, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const sky = x.createLinearGradient(0, 0, 0, H * 0.62);
+  sky.addColorStop(0, '#24335a'); sky.addColorStop(0.45, '#6a6f8f'); sky.addColorStop(0.8, '#c98c6a'); sky.addColorStop(1, '#e6b07a');
+  x.fillStyle = sky; x.fillRect(0, 0, W, H * 0.62);
+  const sun = x.createRadialGradient(W * 0.66, H * 0.33, 0, W * 0.66, H * 0.33, H * 0.55);
+  sun.addColorStop(0, 'rgba(255,236,190,1)'); sun.addColorStop(0.06, 'rgba(255,214,150,.95)'); sun.addColorStop(0.25, 'rgba(255,170,110,.35)'); sun.addColorStop(1, 'rgba(255,150,100,0)');
+  x.fillStyle = sun; x.fillRect(0, 0, W, H * 0.62);
+  for (let i = 0; i < 9; i++) { // clouds
+    x.fillStyle = `rgba(${200 + rnd() * 40},${150 + rnd() * 40},${140 + rnd() * 30},${0.12 + rnd() * 0.15})`;
+    const cy = H * (0.12 + rnd() * 0.3), cx = rnd() * W;
+    for (let k = 0; k < 6; k++) { x.beginPath(); x.ellipse(cx + k * 60 - 150, cy + rnd() * 18, 120 + rnd() * 90, 14 + rnd() * 12, 0, 0, 7); x.fill(); }
+  }
+  const layers = [['#6a5a78', 0.40, 90], ['#4b4566', 0.46, 110], ['#2f3a4a', 0.52, 130], ['#1d2a2a', 0.58, 90]];
+  for (const [col, base, amp] of layers) {
+    x.fillStyle = col; x.beginPath(); x.moveTo(0, H);
+    let y = H * base, ph = rnd() * 10;
+    for (let px = 0; px <= W; px += 12) {
+      y = H * base - Math.abs(Math.sin(px / 260 + ph)) * amp * 0.7 - Math.sin(px / 73 + ph * 2) * amp * 0.18 - rnd() * 6;
+      x.lineTo(px, y);
+    }
+    x.lineTo(W, H); x.closePath(); x.fill();
+    x.fillStyle = 'rgba(230,170,130,.06)'; x.fillRect(0, 0, W, H * 0.62);
+  }
+  x.save(); x.translate(0, H * 1.24); x.scale(1, -1); x.globalAlpha = 0.55; x.drawImage(c, 0, 0, W, H * 0.62, 0, 0, W, H * 0.62); x.restore();
+  const lake = x.createLinearGradient(0, H * 0.62, 0, H);
+  lake.addColorStop(0, 'rgba(20,30,45,.35)'); lake.addColorStop(1, 'rgba(8,14,22,.85)');
+  x.fillStyle = lake; x.fillRect(0, H * 0.62, W, H * 0.38);
+  for (let i = 0; i < 260; i++) { const yy = H * 0.62 + Math.pow(rnd(), 1.6) * H * 0.38; x.fillStyle = `rgba(255,200,150,${0.04 + rnd() * 0.08})`; x.fillRect(rnd() * W, yy, 30 + rnd() * 160, 1 + rnd() * 2); }
+  x.fillStyle = '#0d1512'; x.beginPath(); x.moveTo(0, H); x.lineTo(0, H * 0.8);
+  for (let px = 0; px <= W * 0.35; px += 10) x.lineTo(px, H * 0.8 + px * 0.25 + Math.sin(px / 30) * 8 - (rnd() * 30 * (px % 70 < 12)));
+  x.lineTo(W * 0.35, H); x.fill();
+  const im = x.getImageData(0, 0, W, H), d = im.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (rnd() - 0.5) * 10; d[i] = d[i] * 0.86 + n; d[i + 1] = d[i + 1] * 0.86 + n; d[i + 2] = d[i + 2] * 0.88 + n; }
+  x.putImageData(im, 0, 0);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+  const id = uid(), th = scaledCanvas(c, 360);
+  await DB.putBlob(id, blob);
+  await DB.putMeta({ id, name: 'ຮູບຕົວຢ່າງ (ລອງແຕ່ງໄດ້)', w: W, h: H, created: Date.now(), settings: defaults(), thumb: th.toDataURL('image/jpeg', 0.82), sample: true });
+}
+
+/* ================= EDITOR ================= */
+const TABS = [
+  ['presets', 'ໂປຣເຊັດ'], ['light', 'ແສງ'], ['color', 'ສີ'], ['mix', 'ປະສົມສີ'], ['grade', 'ໂທນສີ'], ['curve', 'ເສັ້ນໂຄ້ງ'],
+  ['effects', 'ເອັບເຟັກ'], ['detail', 'ລາຍລະອຽດ'], ['crop', 'ຕັດ/ໝູນ'], ['mask', 'ປັບບາງສ່ວນ'], ['heal', 'ລຶບຈຸດ']];
+
+async function openEditor(id) {
+  const meta = st.metas.find(m => m.id === id); if (!meta) return;
+  st.cur = meta; st.S = Object.assign(defaults(), clone(meta.settings || {}));
+  st.S.geo = Object.assign(defaults().geo, st.S.geo || {});
+  st.S._mv = 0;
+  $('#lib').hidden = true; $('#ed').hidden = false; $('#edTitle').textContent = meta.name;
+  $('#spin').hidden = false;
+  st.view = { z: 1, px: 0, py: 0 }; st.selMask = null; st.selSpot = -1; st.lastPreset = null;
+  buildTabs(); sizeCanvases();
+  try {
+    if (!st.R) st.R = new Renderer($('#gl'));
+    const blob = await DB.getBlob(id);
+    const img = await decode(blob);
+    const lowMem = navigator.deviceMemory && navigator.deviceMemory < 4;
+    const prev = scaledCanvas(img, Math.min(st.R.maxTex, lowMem ? 1440 : 2048));
+    st.img = prev;
+    st.small = (() => { const s = scaledCanvas(img, 256); return { w: s.width, h: s.height, d: s.getContext('2d').getImageData(0, 0, s.width, s.height).data }; })();
+    if (img.close) img.close();
+    st.R.setSource(prev);
+    st.R.clearMasks(); st.maskCv.clear();
+    for (const m of st.S.masks) redrawMask(m);
+    st.R.setLut(st.S.curve);
+    st.hist = [JSON.stringify(st.S)]; st.hi = 0; updUndo();
+  } catch (e) {
+    console.error(e);
+    $('#spin').hidden = true;
+    toast(e.message === 'NO_WEBGL2' ? 'ໂທລະສັບ/browser ນີ້ບໍ່ຮອງຮັບ WebGL2. ລອງໃຊ້ Chrome ລຸ້ນໃໝ່.' : 'ເປີດຮູບບໍ່ໄດ້: ' + e.message, 5000);
+    closeEditor(); return;
+  }
+  $('#spin').hidden = true;
+  selectTab(st.tab || 'light');
+  requestRender();
+}
+async function closeEditor() {
+  if (st.cur && st.R && st.R.W) {
+    await saveNow();
+    try {
+      const g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90), ar = (g.crop.w * Wo) / (g.crop.h * Ho);
+      const w = ar >= 1 ? 360 : Math.round(360 * ar), hh = ar >= 1 ? Math.round(360 / ar) : 360;
+      const cv = st.R.toCanvas(st.S, Math.max(8, w), Math.max(8, hh));
+      st.cur.thumb = cv.toDataURL('image/jpeg', 0.82);
+      await DB.putMeta(st.cur);
+    } catch (e) { console.warn(e); }
+  }
+  st.cur = null;
+  $('#ed').hidden = true; $('#lib').hidden = false;
+  renderGrid();
+}
+let saveT = null;
+function scheduleSave() { clearTimeout(saveT); saveT = setTimeout(saveNow, 700); }
+async function saveNow() {
+  clearTimeout(saveT); if (!st.cur) return;
+  const { _mv, ...s } = st.S; st.cur.settings = clone(s); st.cur.updated = Date.now();
+  await DB.putMeta(st.cur);
+}
+
+/* ---------- history ---------- */
+function commit() {
+  const snap = JSON.stringify(st.S);
+  if (st.hist[st.hi] === snap) return;
+  st.hist = st.hist.slice(0, st.hi + 1); st.hist.push(snap);
+  if (st.hist.length > 80) st.hist.shift();
+  st.hi = st.hist.length - 1; updUndo(); scheduleSave();
+}
+function restore(i) {
+  st.hi = i; const mv = (st.S._mv || 0) + 1;
+  st.S = JSON.parse(st.hist[i]); st.S._mv = mv;
+  st.R.clearMasks(); st.maskCv.clear(); for (const m of st.S.masks) redrawMask(m);
+  if (st.selMask && !st.S.masks.find(m => m.id === st.selMask)) st.selMask = null;
+  st.R.setLut(st.S.curve); st.selSpot = -1;
+  updUndo(); renderPanel(); requestRender(); scheduleSave();
+}
+function updUndo() { $('#btnUndo').disabled = st.hi <= 0; $('#btnRedo').disabled = st.hi >= st.hist.length - 1; }
+
+/* ---------- canvas sizing & view ---------- */
+function sizeCanvases() {
+  const stg = $('#stage'), r = stg.getBoundingClientRect();
+  st.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  for (const c of [$('#gl'), $('#ov')]) { c.width = Math.max(1, Math.round(r.width * st.dpr)); c.height = Math.max(1, Math.round(r.height * st.dpr)); }
+  st.cssW = r.width; st.cssH = r.height;
+}
+function dispCrop() {
+  const g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90);
+  return st.tab === 'crop' ? bboxCrop(g, Wo, Ho) : g.crop;
+}
+function baseFrame() {
+  const g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90), c = dispCrop();
+  const A = (c.w * Wo) / (c.h * Ho), m = st.tab === 'crop' ? 28 : 10;
+  const aw = st.cssW - 2 * m, ah = st.cssH - 2 * m;
+  let fh = Math.min(ah, aw / A), fw = fh * A;
+  return { w: Math.max(1, fw), h: Math.max(1, fh) };
+}
+function frameRect() { // CSS px
+  const b = baseFrame(), v = st.view, w = b.w * v.z, hh = b.h * v.z;
+  return { x: st.cssW / 2 - w / 2 + v.px, y: st.cssH / 2 - hh / 2 + v.py, w, h: hh };
+}
+function clampPan() {
+  const b = baseFrame(), v = st.view;
+  const mx = Math.max(0, (b.w * v.z - st.cssW) / 2 + 60), my = Math.max(0, (b.h * v.z - st.cssH) / 2 + 60);
+  v.px = clamp(v.px, -mx, mx); v.py = clamp(v.py, -my, my);
+  if (v.z <= 1.001) { v.px = 0; v.py = 0; v.z = 1; }
+}
+function viewToUV(x, y) {
+  const fr = frameRect(), g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90);
+  return f2uv((x - fr.x) / fr.w, (y - fr.y) / fr.h, dispCrop(), g, Wo, Ho);
+}
+function uvToView(u, v) {
+  const fr = frameRect(), g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90);
+  const [fx, fy] = uv2f(u, v, dispCrop(), g, Wo, Ho);
+  return [fr.x + fx * fr.w, fr.y + fy * fr.h];
+}
+function screenPerImagePx() { // CSS px per preview-image px
+  const fr = frameRect(), g = st.S.geo, [Wo] = orientedSize(st.R.W, st.R.H, g.rot90);
+  return fr.w / (dispCrop().w * Wo);
+}
+
+/* ---------- render loop ---------- */
+let rq = 0, histT = null;
+function requestRender() { if (!rq) rq = requestAnimationFrame(doRender); }
+function doRender() {
+  rq = 0; if (!st.cur || !st.R || !st.R.W) return;
+  const fr = frameRect(), d = st.dpr, sel = st.S.masks.find(m => m.id === st.selMask);
+  try {
+    st.R.process(st.S);
+    st.R.output(st.S, {
+      fr: [fr.x * d, fr.y * d, fr.w * d, fr.h * d], crop: dispCrop(), bypass: st.bypass,
+      showMask: st.tab === 'mask' && st.showMask && sel && !st.bypass ? sel : null, fx: st.tab !== 'crop',
+      outside: st.tab === 'crop' ? 0.45 : 1
+    }, null);
+  } catch (e) { console.error(e); }
+  drawOverlay();
+  $('#beforeTag').hidden = !st.bypass;
+  const zt = $('#zoomTag'); zt.hidden = st.view.z <= 1.01; zt.textContent = Math.round(st.view.z * 100) + '%';
+  if (st.tab === 'light') { clearTimeout(histT); histT = setTimeout(drawHist, 160); }
+}
+function drawHist() {
+  const cv = $('#histCv'); if (!cv || !st.R) return;
+  const [r, g, b] = st.R.histogram(st.S);
+  const w = cv.width = cv.clientWidth * st.dpr, hh = cv.height = cv.clientHeight * st.dpr, x = cv.getContext('2d');
+  let mx = 1; for (let i = 2; i < 254; i++) mx = Math.max(mx, r[i], g[i], b[i]);
+  x.clearRect(0, 0, w, hh); x.globalCompositeOperation = 'lighter';
+  [[r, 'rgba(230,80,80,.75)'], [g, 'rgba(90,200,110,.7)'], [b, 'rgba(90,140,240,.75)']].forEach(([a, col]) => {
+    x.fillStyle = col; x.beginPath(); x.moveTo(0, hh);
+    for (let i = 0; i < 256; i++) x.lineTo(i / 255 * w, hh - Math.min(1, a[i] / mx) * (hh - 4));
+    x.lineTo(w, hh); x.fill();
+  });
+  x.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- tabs & panels ---------- */
+function buildTabs() {
+  const t = $('#tabs'); t.innerHTML = '';
+  for (const [k, lo] of TABS) {
+    const b = h('button', { class: 'tab', 'data-k': k, onclick: () => selectTab(k) }, iconEl(k), lo);
+    t.append(b);
+  }
+}
+function tabDots() {
+  const S = st.S, d = devDiff(S), keys = Object.keys(d);
+  const has = re => keys.some(k => re.test(k));
+  const g = S.geo, geoMod = g.angle || g.rot90 || g.flipH || g.flipV || g.pv || g.ph || g.crop.w < 0.999 || g.crop.h < 0.999;
+  const mods = {
+    light: has(/^(exposure|contrast|highlights|shadows|whites|blacks)$/), color: has(/^(temp|tint|vibrance|saturation|bw)$/),
+    mix: has(/^hsl\./), grade: has(/^grade\./), curve: has(/^curve\./), effects: has(/^(texture|clarity|dehaze|vignette|grain)/),
+    detail: has(/^(sharpen|nrLuma|nrColor)$/), crop: geoMod, mask: S.masks.length > 0, heal: S.spots.length > 0
+  };
+  document.querySelectorAll('.tab').forEach(b => {
+    const k = b.dataset.k; b.classList.toggle('on', k === st.tab);
+    let dot = b.querySelector('.dot'); if (mods[k] && !dot) b.append(h('span', { class: 'dot' })); if (!mods[k] && dot) dot.remove();
+  });
+}
+function selectTab(k) {
+  const wasCrop = st.tab === 'crop';
+  st.tab = k; st.view = { z: 1, px: 0, py: 0 };
+  if (wasCrop && k !== 'crop') commit();
+  const b = document.querySelector(`.tab[data-k="${k}"]`); if (b) b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  renderPanel(); requestRender();
+  const hints = { crop: 'ລາກມຸມເພື່ອຕັດ · ລາກກາງເພື່ອຍ້າຍ', heal: 'ແຕະທີ່ຈຸດທີ່ຢາກລຶບ', presets: '' };
+  showHint(hints[k] || '');
+}
+function showHint(t) { const e = $('#hint'); e.textContent = t; e.hidden = !t; clearTimeout(showHint.t); if (t) showHint.t = setTimeout(() => e.hidden = true, 3200); }
+
+function trackFor(min, max, val, def) {
+  const a = (Math.min(val, def) - min) / (max - min) * 100, b = (Math.max(val, def) - min) / (max - min) * 100;
+  return `linear-gradient(90deg,var(--line) ${a}%,var(--accent) ${a}%,var(--accent) ${b}%,var(--line) ${b}%)`;
+}
+function slider(o) {
+  // o: {lo, en, path|get/set, min, max, step, def, fmt, track(fn), onChange}
+  const get = o.get || (() => getPath(st.S, o.path)), set = o.set || (v => setPath(st.S, o.path, v));
+  const def = o.def != null ? o.def : 0, fmt = o.fmt || (v => (v > 0 ? '+' : '') + Math.round(v));
+  const out = h('output'), inp = h('input', { type: 'range', min: o.min, max: o.max, step: o.step || 1, id: 'r-' + (o.path || o.id || o.en).replace(/\W/g, '') });
+  const row = h('div', { class: 'row' }, h('div', { class: 'rl' }, h('span', { class: 'lb' }, o.lo), o.en ? h('span', { class: 'en' }, o.en) : null, out), inp);
+  const paint = v => {
+    out.textContent = fmt(v); row.classList.toggle('changed', Math.abs(v - def) > 1e-6);
+    inp.style.setProperty('--trk', o.track ? o.track(v) : trackFor(+o.min, +o.max, v, def));
+  };
+  inp.value = get(); paint(+inp.value);
+  inp.addEventListener('input', () => { const v = +inp.value; set(v); paint(v); if (o.onInput) o.onInput(v); requestRender(); });
+  inp.addEventListener('change', () => { commit(); tabDots(); });
+  const reset = () => { set(def); inp.value = def; paint(def); if (o.onInput) o.onInput(def); requestRender(); commit(); tabDots(); };
+  row.querySelector('.rl').addEventListener('dblclick', reset);
+  row._refresh = () => { inp.value = get(); paint(+inp.value); };
+  return row;
+}
+const sec = t => h('div', { class: 'sec' }, t);
+const evFmt = v => (v > 0 ? '+' : '') + (+v).toFixed(2);
+function toggleRow(lo, get, set) {
+  const sw = h('span', { class: 'sw-t' + (get() ? ' on' : '') });
+  return h('button', { class: 'toggle', style: 'width:100%', onclick: () => { set(!get()); sw.classList.toggle('on', get()); requestRender(); commit(); tabDots(); } }, h('span', {}, lo), sw);
+}
+
+function renderPanel() {
+  const p = $('#panel'); p.innerHTML = '';
+  const f = PANELS[st.tab]; if (f) f(p);
+  tabDots();
+}
+const PANELS = {
+  presets(p) {
+    const tools = h('div', { class: 'btnrow' },
+      h('button', { class: 'btn', onclick: autoTone }, 'ອັດຕະໂນມັດ'),
+      h('button', { class: 'btn', onclick: () => { st.copied = devDiff(st.S); LS.set('copied', st.copied); toast('ຄັດລອກການແກ້ໄຂແລ້ວ (ສີ ແລະ ແສງ)'); } }, 'ຄັດລອກ'),
+      h('button', { class: 'btn', disabled: !st.copied, onclick: () => { resetDev(st.S); applyFlat(st.S, st.copied); afterBulk(); toast('ວາງການແກ້ໄຂແລ້ວ'); } }, 'ວາງ'),
+      h('button', { class: 'btn ghost', onclick: () => { resetDev(st.S); st.lastPreset = null; afterBulk(); } }, 'ລ້າງສີ/ແສງ'));
+    p.append(tools);
+    if (st.lastPreset) {
+      const lp = st.lastPreset;
+      p.append(slider({ lo: 'ຄວາມແຮງ: ' + lp.name, id: 'pamt', min: 0, max: 150, def: 100, fmt: v => Math.round(v) + '%',
+        get: () => lp.amt, set: v => { lp.amt = v; resetDev(st.S); applyFlat(st.S, lp.s, v / 100); st.R.setLut(st.S.curve); } }));
+    }
+    const user = LS.get('presets', []);
+    p.append(sec('ໂປຣເຊັດຂອງຂ້ອຍ'));
+    const form = h('div', { class: 'inline-form' });
+    const inp = h('input', { id: 'presetName', placeholder: 'ຕັ້ງຊື່ໂປຣເຊັດ ເຊັ່ນ: ຫ້ອງເຊົ່າ ແສງເຊົ້າ', maxlength: 40 });
+    form.append(inp, h('button', { class: 'btn primary', onclick: () => {
+      const n = inp.value.trim(); if (!n) { toast('ໃສ່ຊື່ໂປຣເຊັດກ່ອນ'); inp.focus(); return; }
+      const s = devDiff(st.S); if (!Object.keys(s).length) { toast('ຍັງບໍ່ໄດ້ແກ້ໄຂຫຍັງ, ບໍ່ມີຫຍັງໃຫ້ບັນທຶກ'); return; }
+      const list = LS.get('presets', []); list.unshift({ id: 'u-' + uid(), name: n, s }); LS.set('presets', list);
+      toast('ບັນທຶກໂປຣເຊັດ "' + n + '" ແລ້ວ'); renderPanel();
+    } }, 'ບັນທຶກ'));
+    p.append(form);
+    const grid = (list, isUser) => {
+      const g = h('div', { class: 'presets' });
+      for (const pr of list) {
+        const im = h('img', { alt: '' });
+        const card = h('button', { class: 'pcard' + (isUser ? ' user' : '') + (st.lastPreset && st.lastPreset.id === pr.id ? ' on' : ''), onclick: () => {
+          resetDev(st.S); applyFlat(st.S, pr.s, 1); st.lastPreset = { id: pr.id, name: pr.name, s: pr.s, amt: 100 }; afterBulk();
+        } }, h('div', { class: 'pimg' }, im), h('span', {}, pr.name));
+        if (isUser) {
+          let lp; card.addEventListener('pointerdown', () => lp = setTimeout(() => { lp = 'x'; delUserPreset(pr); }, 650));
+          card.addEventListener('pointerup', () => clearTimeout(lp)); card.addEventListener('pointerleave', () => clearTimeout(lp));
+        }
+        g.append(card); queueThumb(im, pr.s);
+      }
+      return g;
+    };
+    if (user.length) { p.append(grid(user, true)); p.append(h('p', { class: 'note' }, 'ກົດຄ້າງທີ່ໂປຣເຊັດຂອງຂ້ອຍເພື່ອລຶບ.')); }
+    else p.append(h('p', { class: 'note' }, 'ແຕ່ງຮູບໃຫ້ໄດ້ຕາມໃຈ ແລ້ວບັນທຶກເປັນໂປຣເຊັດ ເພື່ອໃຊ້ກັບຮູບອື່ນໄດ້ທັນທີ.'));
+    p.append(sec('ໂປຣເຊັດພື້ນຖານ'));
+    p.append(grid(PRESETS, false));
+    runThumbs();
+  },
+  light(p) {
+    p.append(h('canvas', { class: 'hist', id: 'histCv' }));
+    p.append(slider({ lo: 'ຮັບແສງ', en: 'Exposure', path: 'exposure', min: -5, max: 5, step: 0.01, fmt: evFmt }));
+    p.append(slider({ lo: 'ຄວາມຕ່າງແສງ', en: 'Contrast', path: 'contrast', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ສ່ວນສະຫວ່າງ', en: 'Highlights', path: 'highlights', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ສ່ວນມືດ', en: 'Shadows', path: 'shadows', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ສີຂາວ', en: 'Whites', path: 'whites', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ສີດຳ', en: 'Blacks', path: 'blacks', min: -100, max: 100 }));
+    p.append(h('div', { class: 'btnrow' }, h('button', { class: 'btn', onclick: autoTone }, 'ປັບແສງອັດຕະໂນມັດ')));
+  },
+  color(p) {
+    p.append(toggleRow('ຂາວດຳ (Black & White)', () => st.S.bw, v => st.S.bw = v));
+    p.append(sec('ສົມດຸນສີຂາວ'));
+    p.append(slider({ lo: 'ອຸນຫະພູມສີ', en: 'Temp', path: 'temp', min: -100, max: 100, track: () => 'linear-gradient(90deg,#3d78d8,#bfc6c9,#e3a33a)' }));
+    p.append(slider({ lo: 'ໂທນສີ', en: 'Tint', path: 'tint', min: -100, max: 100, track: () => 'linear-gradient(90deg,#3fae5a,#c6c6c6,#c44fb3)' }));
+    p.append(sec('ຄວາມສົດຂອງສີ'));
+    p.append(slider({ lo: 'ຄວາມສົດ', en: 'Vibrance', path: 'vibrance', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ຄວາມອີ່ມສີ', en: 'Saturation', path: 'saturation', min: -100, max: 100 }));
+  },
+  mix(p) {
+    const sw = h('div', { class: 'swatches' });
+    HSL_BANDS.forEach((b, i) => {
+      const mod = st.S.hsl.h[i] || st.S.hsl.s[i] || st.S.hsl.l[i];
+      sw.append(h('button', { class: 'sw' + (i === st.hslBand ? ' on' : '') + (mod ? ' mod' : ''), style: 'background:' + b.c, 'aria-label': b.lo, onclick: () => { st.hslBand = i; renderPanel(); } }));
+    });
+    p.append(sw);
+    const i = st.hslBand, b = HSL_BANDS[i], prev = HSL_BANDS[(i + 7) % 8].c, next = HSL_BANDS[(i + 1) % 8].c;
+    p.append(sec('ສີ' + b.lo));
+    p.append(slider({ lo: 'ປ່ຽນສີ', en: 'Hue', path: 'hsl.h.' + i, min: -100, max: 100, track: () => `linear-gradient(90deg,${prev},${b.c},${next})` }));
+    p.append(slider({ lo: 'ຄວາມອີ່ມ', en: 'Saturation', path: 'hsl.s.' + i, min: -100, max: 100, track: () => `linear-gradient(90deg,#8a8a8a,${b.c})` }));
+    p.append(slider({ lo: 'ຄວາມສະຫວ່າງ', en: 'Luminance', path: 'hsl.l.' + i, min: -100, max: 100, track: () => `linear-gradient(90deg,#111,${b.c},#fff)` }));
+    p.append(h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', onclick: () => { st.S.hsl = defaults().hsl; afterBulk(); } }, 'ລ້າງທຸກສີ')));
+  },
+  grade(p) {
+    const regs = [['sh', 'ມືດ'], ['mid', 'ກາງ'], ['hi', 'ສະຫວ່າງ'], ['gl', 'ທັງໝົດ']];
+    p.append(h('div', { class: 'seg' }, regs.map(([k, lo]) => h('button', { class: k === st.gradeRegion ? 'on' : '', onclick: () => { st.gradeRegion = k; renderPanel(); } }, lo))));
+    const r = st.gradeRegion, base = 'grade.' + r;
+    const hueTrack = () => 'linear-gradient(90deg,#f33,#fb3,#3f3,#3ff,#33f,#f3f,#f33)';
+    p.append(slider({ lo: 'ສີ', en: 'Hue', path: base + '.h', min: 0, max: 360, def: getPath(st.S, base + '.h'), fmt: v => Math.round(v) + '°', track: hueTrack, onInput: () => paintSat() }));
+    const satRow = slider({ lo: 'ຄວາມເຂັ້ມ', en: 'Saturation', path: base + '.s', min: 0, max: 100, fmt: v => Math.round(v) });
+    const paintSat = () => { const hh = getPath(st.S, base + '.h'); satRow.querySelector('input').style.setProperty('--trk', `linear-gradient(90deg,#777,hsl(${hh} 85% 55%))`); };
+    p.append(satRow); paintSat();
+    satRow.querySelector('input').addEventListener('input', paintSat);
+    p.append(slider({ lo: 'ຄວາມສະຫວ່າງ', en: 'Luminance', path: base + '.l', min: -100, max: 100 }));
+    p.append(sec('ການປະສົມ'));
+    p.append(slider({ lo: 'ຄວາມນຸ່ມ', en: 'Blending', path: 'grade.blend', min: 0, max: 100, def: 50, fmt: v => Math.round(v) }));
+    p.append(slider({ lo: 'ສົມດຸນ', en: 'Balance', path: 'grade.balance', min: -100, max: 100 }));
+  },
+  curve(p) {
+    const chs = [['m', 'RGB', '#ecebe7'], ['r', 'ແດງ', '#e5484d'], ['g', 'ຂຽວ', '#5dbb63'], ['b', 'ຟ້າ', '#4a7fe0']];
+    p.append(h('div', { class: 'seg' }, chs.map(([k, lo, c]) => h('button', { class: k === st.curveCh ? 'on' : '', style: k === st.curveCh ? 'color:' + c : '', onclick: () => { st.curveCh = k; renderPanel(); } }, lo))));
+    const box = h('div', { class: 'curvebox' }), cv = h('canvas', { id: 'curveCv' }); box.append(cv); p.append(box);
+    p.append(h('p', { class: 'note' }, 'ແຕະເພື່ອເພີ່ມຈຸດ, ລາກເພື່ອປັບ, ລາກຈຸດອອກນອກກອບເພື່ອລຶບ.'));
+    p.append(h('div', { class: 'btnrow' },
+      h('button', { class: 'btn ghost', onclick: () => { st.S.curve[st.curveCh] = clone(ID); st.R.setLut(st.S.curve); drawCurve(); requestRender(); commit(); tabDots(); } }, 'ລ້າງເສັ້ນນີ້'),
+      h('button', { class: 'btn ghost', onclick: () => { st.S.curve = defaults().curve; st.R.setLut(st.S.curve); drawCurve(); requestRender(); commit(); tabDots(); } }, 'ລ້າງທັງໝົດ')));
+    requestAnimationFrame(() => { initCurve(cv); drawCurve(); });
+  },
+  effects(p) {
+    p.append(sec('ຄວາມຄົມ ແລະ ອາກາດ'));
+    p.append(slider({ lo: 'ພື້ນຜິວ', en: 'Texture', path: 'texture', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ຄວາມໃສ', en: 'Clarity', path: 'clarity', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ລົບໝອກ', en: 'Dehaze', path: 'dehaze', min: -100, max: 100 }));
+    p.append(sec('ຂອບມືດ (Vignette)'));
+    p.append(slider({ lo: 'ຄວາມແຮງ', en: 'Amount', path: 'vignette.amount', min: -100, max: 100 }));
+    p.append(slider({ lo: 'ຈຸດກາງ', en: 'Midpoint', path: 'vignette.mid', min: 0, max: 100, def: 50, fmt: v => Math.round(v) }));
+    p.append(slider({ lo: 'ຄວາມນຸ່ມ', en: 'Feather', path: 'vignette.feather', min: 0, max: 100, def: 50, fmt: v => Math.round(v) }));
+    p.append(slider({ lo: 'ຄວາມມົນ', en: 'Roundness', path: 'vignette.round', min: 0, max: 100, def: 0, fmt: v => Math.round(v) }));
+    p.append(sec('ເມັດຟິມ (Grain)'));
+    p.append(slider({ lo: 'ຄວາມແຮງ', en: 'Amount', path: 'grain.amount', min: 0, max: 100, fmt: v => Math.round(v) }));
+    p.append(slider({ lo: 'ຂະໜາດ', en: 'Size', path: 'grain.size', min: 0, max: 100, def: 25, fmt: v => Math.round(v) }));
+    p.append(slider({ lo: 'ຄວາມຫຍາບ', en: 'Roughness', path: 'grain.rough', min: 0, max: 100, def: 50, fmt: v => Math.round(v) }));
+  },
+  detail(p) {
+    p.append(sec('ຄວາມຄົມຊັດ'));
+    p.append(slider({ lo: 'ເພີ່ມຄວາມຄົມ', en: 'Sharpening', path: 'sharpen', min: 0, max: 100, fmt: v => Math.round(v) }));
+    p.append(sec('ລົດສຽງລົບກວນ (ພື້ນຖານ)'));
+    p.append(slider({ lo: 'ເມັດແສງ', en: 'Luminance', path: 'nrLuma', min: 0, max: 100, fmt: v => Math.round(v) }));
+    p.append(slider({ lo: 'ເມັດສີ', en: 'Color', path: 'nrColor', min: 0, max: 100, fmt: v => Math.round(v) }));
+    p.append(h('p', { class: 'note' }, 'ຊູມເຂົ້າ 100% (ແຕະສອງເທື່ອທີ່ຮູບ) ເພື່ອເບິ່ງຄວາມຄົມໃຫ້ຊັດ.'));
+  },
+  crop(p) {
+    const g = st.S.geo;
+    const asp = [['orig', 'ຕົ້ນສະບັບ'], ['free', 'ອິດສະຫຼະ'], ['1:1', '1:1'], ['4:5', '4:5'], ['3:4', '3:4'], ['2:3', '2:3'], ['9:16', '9:16'], ['16:9', '16:9'], ['3:2', '3:2']];
+    p.append(h('div', { class: 'chips' }, asp.map(([k, lo]) => h('button', { class: 'chip' + (g.aspect === k ? ' on' : ''), onclick: () => { g.aspect = k; g.auto = true; refitCrop(); renderPanel(); requestRender(); } }, lo))));
+    p.append(h('div', { class: 'btnrow' },
+      h('button', { class: 'btn', onclick: () => { g.rot90 = (g.rot90 + 3) % 4; g.auto = true; refitCrop(true); requestRender(); } }, '⟲ 90°'),
+      h('button', { class: 'btn', onclick: () => { g.rot90 = (g.rot90 + 1) % 4; g.auto = true; refitCrop(true); requestRender(); } }, '⟳ 90°'),
+      h('button', { class: 'btn', onclick: () => { g.flipH = !g.flipH; g.crop.cx = -g.crop.cx; refitCrop(); requestRender(); commit(); } }, 'ກັບຊ້າຍ-ຂວາ'),
+      h('button', { class: 'btn', onclick: () => { g.flipV = !g.flipV; g.crop.cy = -g.crop.cy; refitCrop(); requestRender(); commit(); } }, 'ກັບເທິງ-ລຸ່ມ')));
+    p.append(slider({ lo: 'ປັບໃຫ້ຊື່', en: 'Straighten', path: 'geo.angle', min: -45, max: 45, step: 0.1, fmt: v => (+v).toFixed(1) + '°', onInput: () => refitCrop() }));
+    p.append(sec('ແກ້ມຸມມອງ (Geometry)'));
+    p.append(slider({ lo: 'ແນວຕັ້ງ', en: 'Vertical', path: 'geo.pv', min: -100, max: 100, onInput: () => refitCrop() }));
+    p.append(slider({ lo: 'ແນວນອນ', en: 'Horizontal', path: 'geo.ph', min: -100, max: 100, onInput: () => refitCrop() }));
+    p.append(h('p', { class: 'note' }, 'ແນວຕັ້ງ ໃຊ້ແກ້ເສົາ ຫຼື ຝາຫ້ອງທີ່ເບິ່ງຄືລົ້ມ ເວລາຖ່າຍຈາກລຸ່ມຂຶ້ນເທິງ.'));
+    p.append(h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', onclick: () => { st.S.geo = defaults().geo; renderPanel(); requestRender(); commit(); } }, 'ລ້າງການຕັດ/ໝູນ')));
+  },
+  mask(p) { maskPanel(p); },
+  heal(p) {
+    const H = st.heal;
+    p.append(h('div', { class: 'seg' },
+      h('button', { class: H.mode === 'heal' ? 'on' : '', onclick: () => { H.mode = 'heal'; LS.set('healMode', 'heal'); if (st.selSpot >= 0) { st.S.spots[st.selSpot].mode = 'heal'; commit(); requestRender(); } renderPanel(); } }, 'ກືນສີ (Heal)'),
+      h('button', { class: H.mode === 'clone' ? 'on' : '', onclick: () => { H.mode = 'clone'; LS.set('healMode', 'clone'); if (st.selSpot >= 0) { st.S.spots[st.selSpot].mode = 'clone'; commit(); requestRender(); } renderPanel(); } }, 'ສຳເນົາ (Clone)')));
+    const sp = st.S.spots[st.selSpot];
+    p.append(slider({ lo: 'ຂະໜາດແປງ', en: 'Size', id: 'hsize', min: 0.5, max: 15, step: 0.1, def: 3, fmt: v => (+v).toFixed(1),
+      get: () => (sp ? sp.r : H.size) * 100, set: v => { H.size = v / 100; LS.set('healSize', H.size); if (sp) { sp.r = v / 100; } } }));
+    p.append(slider({ lo: 'ຄວາມນຸ່ມຂອບ', en: 'Feather', id: 'hfeather', min: 0, max: 100, def: 50, fmt: v => Math.round(v),
+      get: () => (sp ? sp.f : 0.5) * 100, set: v => { if (sp) sp.f = v / 100; } }));
+    p.append(h('p', { class: 'note' }, 'ແຕະຈຸດທີ່ຢາກລຶບ, app ຈະເລືອກບ່ອນເອົາມາແທນໃຫ້ອັດຕະໂນມັດ. ລາກວົງເສັ້ນປະ ເພື່ອປ່ຽນບ່ອນທີ່ເອົາມາແທນ.'));
+    p.append(h('div', { class: 'btnrow' },
+      h('button', { class: 'btn danger', disabled: !sp, onclick: () => { st.S.spots.splice(st.selSpot, 1); st.selSpot = -1; commit(); renderPanel(); requestRender(); } }, 'ລຶບຈຸດນີ້'),
+      h('button', { class: 'btn ghost', disabled: !st.S.spots.length, onclick: () => { st.S.spots = []; st.selSpot = -1; commit(); renderPanel(); requestRender(); } }, `ລ້າງທັງໝົດ (${st.S.spots.length})`)));
+  }
+};
+function afterBulk() { st.R.setLut(st.S.curve); renderPanel(); requestRender(); commit(); }
+function delUserPreset(pr) {
+  const root = $('#sheetRoot');
+  root.innerHTML = '';
+  const bg = h('div', { class: 'sheet-bg', onclick: e => { if (e.target === bg) root.innerHTML = ''; } },
+    h('div', { class: 'sheet' }, h('div', { class: 'grab' }), h('h2', {}, 'ລຶບໂປຣເຊັດ "' + pr.name + '"?'),
+      h('p', { class: 'note' }, 'ຮູບທີ່ໃຊ້ໂປຣເຊັດນີ້ໄປແລ້ວຈະບໍ່ປ່ຽນ.'),
+      h('div', { class: 'btnrow' }, h('button', { class: 'btn danger', onclick: () => { LS.set('presets', LS.get('presets', []).filter(x => x.id !== pr.id)); root.innerHTML = ''; renderPanel(); toast('ລຶບແລ້ວ'); } }, 'ລຶບ'),
+        h('button', { class: 'btn ghost', onclick: () => root.innerHTML = '' }, 'ຍົກເລີກ'))));
+  root.append(bg);
+}
+
+/* preset thumbnails: rendered from the current photo, one per frame */
+let thumbQ = [];
+function queueThumb(img, flat) { thumbQ.push([img, flat]); }
+function runThumbs() {
+  if (!thumbQ.length || !st.R) return;
+  const [img, flat] = thumbQ.shift();
+  if (img.isConnected) {
+    try {
+      const S = clone(st.S); resetDev(S); applyFlat(S, flat, 1); S._mv = -1; S.masks = st.S.masks;
+      const g = S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90), ar = (g.crop.w * Wo) / (g.crop.h * Ho);
+      const w = ar >= 1 ? Math.round(160 * ar) : 160, hh = ar >= 1 ? 160 : Math.round(160 / ar);
+      st.R.setLut(S.curve);
+      img.src = st.R.toCanvas(S, w, hh).toDataURL('image/jpeg', 0.8);
+      st.R.setLut(st.S.curve); st.R.procKey = null;
+    } catch (e) { console.warn(e); }
+  }
+  if (thumbQ.length) requestAnimationFrame(runThumbs); else requestRender();
+}
+
+/* auto tone from luminance percentiles of the small image */
+function autoTone() {
+  const d = st.small.d, hist = new Uint32Array(256); let n = 0;
+  for (let i = 0; i < d.length; i += 4) { hist[Math.round(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2])]++; n++; }
+  const pct = q => { let a = 0; for (let i = 0; i < 256; i++) { a += hist[i]; if (a >= q * n) return i / 255; } return 1; };
+  const p1 = pct(0.01), p50 = pct(0.5), p99 = pct(0.99);
+  const lin = v => Math.pow(v, 2.2);
+  const S = st.S;
+  S.exposure = +clamp(Math.log2(lin(0.46) / Math.max(1e-3, lin(p50))) * 0.7, -2, 2).toFixed(2);
+  S.contrast = 10; S.highlights = Math.round(clamp(-(p99 - 0.85) * 300, -60, 10)); S.shadows = Math.round(clamp((0.25 - p1) * 160, -10, 45));
+  S.whites = Math.round(clamp((0.96 - p99) * 200, -30, 40)); S.blacks = Math.round(clamp((0.02 - p1) * 300, -30, 20));
+  S.vibrance = 15;
+  afterBulk(); toast('ປັບແສງອັດຕະໂນມັດແລ້ວ, ປັບຕໍ່ໄດ້ຕາມໃຈ');
+}
+
+/* ---------- crop logic ---------- */
+const ASPECTS = { '1:1': 1, '4:5': 4 / 5, '3:4': 3 / 4, '2:3': 2 / 3, '9:16': 9 / 16, '16:9': 16 / 9, '3:2': 3 / 2 };
+function aspectRatio() {
+  const g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90);
+  if (g.aspect === 'orig') return Wo / Ho; if (g.aspect === 'free') return null; return ASPECTS[g.aspect];
+}
+function refitCrop(reset) {
+  const g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90);
+  if (reset || g.auto) g.crop = maxCrop(g, Wo, Ho, aspectRatio() || (g.crop.w * Wo) / (g.crop.h * Ho) || Wo / Ho);
+  else g.crop = shrinkToFit(g.crop, g, Wo, Ho);
+}
+
+/* ---------- curve editor ---------- */
+let curveDrag = null;
+function curveGeom(cv) { const r = cv.getBoundingClientRect(), pad = 12; return { r, pad, w: r.width - 2 * pad, h: r.height - 2 * pad }; }
+function initCurve(cv) {
+  const toXY = e => { const g = curveGeom(cv); return [(e.clientX - g.r.left - g.pad) / g.w, 1 - (e.clientY - g.r.top - g.pad) / g.h, g]; };
+  cv.addEventListener('pointerdown', e => {
+    const pts = st.S.curve[st.curveCh]; const [x, y, g] = toXY(e);
+    let best = -1, bd = 1e9;
+    pts.forEach((p, i) => { const d = Math.hypot((p[0] - x) * g.w, (p[1] - y) * g.h); if (d < bd) { bd = d; best = i; } });
+    if (bd > 22) {
+      if (x <= 0.01 || x >= 0.99) return;
+      const cs = curveSamples(pts); const ny = cs[Math.round(clamp(x, 0, 1) * 255)];
+      pts.push([clamp(x, 0, 1), Math.abs(ny - y) * g.h < 30 ? ny : clamp(y, 0, 1)]); pts.sort((a, b) => a[0] - b[0]);
+      best = pts.findIndex(p => p[0] === clamp(x, 0, 1));
+    }
+    curveDrag = { i: best }; cv.setPointerCapture(e.pointerId); onMove(e);
+  });
+  const onMove = e => {
+    if (!curveDrag) return;
+    const pts = st.S.curve[st.curveCh]; const [x, y] = toXY(e); const i = curveDrag.i; if (i < 0 || !pts[i]) return;
+    const end = i === 0 || i === pts.length - 1;
+    const out = !end && (y < -0.15 || y > 1.15 || x < -0.12 || x > 1.12);
+    curveDrag.remove = out;
+    if (end) pts[i] = [pts[i][0], clamp(y, 0, 1)];
+    else { const lo = pts[i - 1][0] + 0.02, hi = pts[i + 1][0] - 0.02; pts[i] = [clamp(x, lo, hi), clamp(y, 0, 1)]; }
+    st.R.setLut(st.S.curve); drawCurve(); requestRender();
+  };
+  cv.addEventListener('pointermove', onMove);
+  const up = () => {
+    if (!curveDrag) return;
+    if (curveDrag.remove) { st.S.curve[st.curveCh].splice(curveDrag.i, 1); st.R.setLut(st.S.curve); drawCurve(); requestRender(); }
+    curveDrag = null; commit(); tabDots();
+  };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+}
+function drawCurve() {
+  const cv = $('#curveCv'); if (!cv) return;
+  const g = curveGeom(cv), d = st.dpr; cv.width = g.r.width * d; cv.height = g.r.height * d;
+  const x = cv.getContext('2d'); x.scale(d, d);
+  const X = v => g.pad + v * g.w, Y = v => g.pad + (1 - v) * g.h;
+  x.strokeStyle = '#2c2f35'; x.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { x.beginPath(); x.moveTo(X(i / 4), Y(0)); x.lineTo(X(i / 4), Y(1)); x.moveTo(X(0), Y(i / 4)); x.lineTo(X(1), Y(i / 4)); x.stroke(); }
+  x.strokeStyle = '#3a3d44'; x.setLineDash([4, 4]); x.beginPath(); x.moveTo(X(0), Y(0)); x.lineTo(X(1), Y(1)); x.stroke(); x.setLineDash([]);
+  const cols = { m: '#ecebe7', r: '#e5484d', g: '#5dbb63', b: '#4a7fe0' };
+  for (const k of ['r', 'g', 'b', 'm']) {
+    if (k === st.curveCh || isIdentityCurve(st.S.curve[k])) continue;
+    const cs = curveSamples(st.S.curve[k]); x.strokeStyle = cols[k]; x.globalAlpha = 0.35; x.beginPath();
+    for (let i = 0; i < 256; i++) i ? x.lineTo(X(i / 255), Y(cs[i])) : x.moveTo(X(0), Y(cs[0])); x.stroke(); x.globalAlpha = 1;
+  }
+  const pts = st.S.curve[st.curveCh], cs = curveSamples(pts);
+  x.strokeStyle = cols[st.curveCh]; x.lineWidth = 2; x.beginPath();
+  for (let i = 0; i < 256; i++) i ? x.lineTo(X(i / 255), Y(cs[i])) : x.moveTo(X(0), Y(cs[0])); x.stroke();
+  for (const p of pts) { x.fillStyle = '#111214'; x.strokeStyle = cols[st.curveCh]; x.lineWidth = 2; x.beginPath(); x.arc(X(p[0]), Y(p[1]), 6, 0, 7); x.fill(); x.stroke(); }
+}
+
+/* ---------- masks ---------- */
+const MASK_ADJ = () => ({ exposure: 0, contrast: 0, highlights: 0, shadows: 0, clarity: 0, temp: 0, tint: 0, saturation: 0 });
+const MASK_NAME = { linear: 'ໄລ່ລະດັບ', radial: 'ວົງມົນ', brush: 'ແປງທາສີ' };
+function maskCanvas(m, longEdge = 1024) {
+  let c = st.maskCv.get(m.id);
+  const s = longEdge / Math.max(st.R.W, st.R.H), w = Math.max(1, Math.round(st.R.W * s)), hh = Math.max(1, Math.round(st.R.H * s));
+  if (!c || c.width !== w || c.height !== hh) { c = document.createElement('canvas'); c.width = w; c.height = hh; st.maskCv.set(m.id, c); }
+  return c;
+}
+const stampCache = new Map();
+function stamp(feather) {
+  const k = Math.round(feather * 10) / 10; if (stampCache.has(k)) return stampCache.get(k);
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+  const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(clamp(1 - k, 0, 0.99), 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128); stampCache.set(k, c); return c;
+}
+function paintMask(ctx, m, W, H) {
+  const L = Math.max(W, H), p = m.p;
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  if (m.type === 'linear') {
+    const g = ctx.createLinearGradient(p.x1 * W, p.y1 * H, p.x2 * W, p.y2 * H);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  } else if (m.type === 'radial') {
+    ctx.save(); ctx.translate(p.cx * W, p.cy * H); ctx.rotate(p.a || 0); ctx.scale(p.rx * L, p.ry * L);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(clamp(1 - p.f, 0, 0.99), 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 1, 0, 7); ctx.fill(); ctx.restore();
+  } else if (m.type === 'brush') {
+    for (const s of p.strokes) drawStroke(ctx, s, W, H, 0);
+  }
+}
+function drawStroke(ctx, s, W, H, from) {
+  const L = Math.max(W, H), r = s.s * L / 2, sp = Math.max(1, r * 0.22), img = stamp(s.f);
+  ctx.globalCompositeOperation = s.e ? 'destination-out' : 'source-over'; ctx.globalAlpha = s.fl * 0.5;
+  const pts = s.pts; let lx = null, ly = null;
+  const start = Math.max(0, from - 2);
+  for (let i = start; i < pts.length; i += 2) {
+    const x = pts[i] * W, y = pts[i + 1] * H;
+    if (lx == null) { ctx.drawImage(img, x - r, y - r, 2 * r, 2 * r); lx = x; ly = y; continue; }
+    const d = Math.hypot(x - lx, y - ly), n = Math.floor(d / sp);
+    for (let k = 1; k <= n; k++) { const t = k / n; ctx.drawImage(img, lx + (x - lx) * t - r, ly + (y - ly) * t - r, 2 * r, 2 * r); }
+    if (n) { lx = x; ly = y; }
+  }
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+}
+function redrawMask(m) {
+  const c = maskCanvas(m), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
+  paintMask(x, m, c.width, c.height);
+  st.R.setMask(m.id, c); st.S._mv = (st.S._mv || 0) + 1;
+}
+function addMask(type) {
+  if (st.S.masks.length >= 12) { toast('ໃສ່ໄດ້ສູງສຸດ 12 ມາສ໌ກ'); return; }
+  const [cu, cv] = viewToUV(st.cssW / 2, st.cssH / 2);
+  const p = type === 'linear' ? { x1: cu, y1: clamp(cv - 0.3, 0, 1), x2: cu, y2: clamp(cv + 0.05, 0, 1) }
+    : type === 'radial' ? { cx: cu, cy: cv, rx: 0.18, ry: 0.14, a: 0, f: 0.5 } : { strokes: [] };
+  const n = st.S.masks.filter(m => m.type === type).length + 1;
+  const m = { id: uid(), type, name: MASK_NAME[type] + ' ' + n, inv: false, p, adj: MASK_ADJ() };
+  if (type === 'linear' || type === 'radial') m.adj.exposure = type === 'linear' ? -0.5 : 0.4;
+  st.S.masks.push(m); st.selMask = m.id; redrawMask(m); commit(); renderPanel(); requestRender();
+  showHint(type === 'brush' ? 'ທາສີດ້ວຍນິ້ວດຽວ · ຊູມດ້ວຍສອງນິ້ວ' : type === 'linear' ? 'ລາກຈຸດເພື່ອປັບທິດ ແລະ ໄລຍະ' : 'ລາກກາງເພື່ອຍ້າຍ · ລາກຈຸດຂອບເພື່ອປັບຂະໜາດ');
+}
+function maskPanel(p) {
+  const list = h('div', { class: 'masklist' });
+  for (const m of st.S.masks) list.append(h('button', { class: 'mchip' + (m.id === st.selMask ? ' on' : ''), onclick: () => { st.selMask = m.id; renderPanel(); requestRender(); } }, iconEl(m.type), m.name));
+  if (st.S.masks.length) p.append(list);
+  p.append(sec('ເພີ່ມມາສ໌ກໃໝ່'));
+  p.append(h('div', { class: 'chips' },
+    h('button', { class: 'chip', onclick: () => addMask('linear') }, iconEl('linear'), 'ໄລ່ລະດັບ'),
+    h('button', { class: 'chip', onclick: () => addMask('radial') }, iconEl('radial'), 'ວົງມົນ'),
+    h('button', { class: 'chip', onclick: () => addMask('brush') }, iconEl('brush'), 'ແປງທາສີ')));
+  const m = st.S.masks.find(x => x.id === st.selMask);
+  if (!m) { p.append(h('p', { class: 'note' }, 'ມາສ໌ກ ໃຊ້ປັບແສງ/ສີ ສະເພາະບາງສ່ວນຂອງຮູບ. ເຊັ່ນ: ໄລ່ລະດັບ ເຮັດໃຫ້ທ້ອງຟ້າເຂັ້ມຂຶ້ນ, ວົງມົນ ເນັ້ນໜ້າຄົນ, ແປງ ທາສະເພາະບ່ອນ.')); return; }
+  p.append(sec(m.name));
+  p.append(toggleRow('ສະແດງບ່ອນທີ່ເລືອກ (ສີແດງ)', () => st.showMask, v => st.showMask = v));
+  p.append(toggleRow('ກັບດ້ານ (ເລືອກສ່ວນທີ່ເຫຼືອ)', () => m.inv, v => { m.inv = v; st.S._mv++; }));
+  if (m.type === 'brush') {
+    const B = st.brush;
+    p.append(h('div', { class: 'seg' },
+      h('button', { class: !B.erase ? 'on' : '', onclick: () => { B.erase = false; LS.set('brush', B); renderPanel(); } }, 'ທາເພີ່ມ'),
+      h('button', { class: B.erase ? 'on' : '', onclick: () => { B.erase = true; LS.set('brush', B); renderPanel(); } }, 'ລຶບອອກ')));
+    p.append(slider({ lo: 'ຂະໜາດແປງ', en: 'Size', id: 'bsize', min: 1, max: 40, def: 8, fmt: v => Math.round(v), get: () => B.size * 100, set: v => { B.size = v / 100; LS.set('brush', B); drawOverlay(); } }));
+    p.append(slider({ lo: 'ຄວາມນຸ່ມ', en: 'Feather', id: 'bfeather', min: 0, max: 100, def: 60, fmt: v => Math.round(v), get: () => B.feather * 100, set: v => { B.feather = v / 100; LS.set('brush', B); } }));
+    p.append(slider({ lo: 'ຄວາມໜາ', en: 'Flow', id: 'bflow', min: 5, max: 100, def: 60, fmt: v => Math.round(v), get: () => B.flow * 100, set: v => { B.flow = v / 100; LS.set('brush', B); } }));
+  }
+  if (m.type === 'radial') p.append(slider({ lo: 'ຄວາມນຸ່ມຂອບ', en: 'Feather', id: 'rfeather', min: 0, max: 100, def: 50, fmt: v => Math.round(v), get: () => m.p.f * 100, set: v => { m.p.f = v / 100; redrawMask(m); } }));
+  p.append(sec('ປັບສະເພາະບ່ອນນີ້'));
+  const A = 'adj';
+  const ms = (lo, en, k, o = {}) => slider(Object.assign({ lo, en, id: 'm' + k, min: -100, max: 100, get: () => m[A][k], set: v => { m[A][k] = v; } }, o));
+  p.append(ms('ຮັບແສງ', 'Exposure', 'exposure', { min: -4, max: 4, step: 0.01, fmt: evFmt }));
+  p.append(ms('ຄວາມຕ່າງແສງ', 'Contrast', 'contrast'));
+  p.append(ms('ສ່ວນສະຫວ່າງ', 'Highlights', 'highlights'));
+  p.append(ms('ສ່ວນມືດ', 'Shadows', 'shadows'));
+  p.append(ms('ຄວາມໃສ', 'Clarity', 'clarity'));
+  p.append(ms('ອຸນຫະພູມສີ', 'Temp', 'temp', { track: () => 'linear-gradient(90deg,#3d78d8,#bfc6c9,#e3a33a)' }));
+  p.append(ms('ໂທນສີ', 'Tint', 'tint', { track: () => 'linear-gradient(90deg,#3fae5a,#c6c6c6,#c44fb3)' }));
+  p.append(ms('ຄວາມອີ່ມສີ', 'Saturation', 'saturation'));
+  p.append(h('div', { class: 'btnrow' },
+    h('button', { class: 'btn danger', onclick: () => { st.S.masks = st.S.masks.filter(x => x.id !== m.id); st.R.dropMask(m.id); st.maskCv.delete(m.id); st.selMask = null; commit(); renderPanel(); requestRender(); } }, 'ລຶບມາສ໌ກນີ້'),
+    h('button', { class: 'btn ghost', onclick: () => { const c = clone(m); c.id = uid(); c.name = m.name + ' (ສຳເນົາ)'; st.S.masks.push(c); st.selMask = c.id; redrawMask(c); commit(); renderPanel(); requestRender(); } }, 'ສຳເນົາ')));
+}
+
+/* ---------- heal source search ---------- */
+function findSource(u, v, r) {
+  const sm = st.small, W = sm.w, H = sm.h, L = Math.max(st.R.W, st.R.H), rp = r * L * (Math.max(W, H) / L); // radius in small px
+  const px = (x, y) => { const xi = clamp(Math.round(x), 0, W - 1), yi = clamp(Math.round(y), 0, H - 1), i = (yi * W + xi) * 4; return [sm.d[i], sm.d[i + 1], sm.d[i + 2]]; };
+  const ring = (cx, cy) => { const a = []; for (let k = 0; k < 24; k++) { const t = k / 24 * Math.PI * 2; for (const f of [1.15, 1.6]) a.push(px(cx + Math.cos(t) * rp * f, cy + Math.sin(t) * rp * f)); } return a; };
+  const dx = u * W, dy = v * H, ref = ring(dx, dy);
+  let best = null, bs = 1e18;
+  for (const dist of [2.3, 3.2, 4.4]) for (let k = 0; k < 16; k++) {
+    const t = k / 16 * Math.PI * 2, sx = dx + Math.cos(t) * rp * dist, sy = dy + Math.sin(t) * rp * dist;
+    if (sx - rp * 1.7 < 0 || sy - rp * 1.7 < 0 || sx + rp * 1.7 > W || sy + rp * 1.7 > H) continue;
+    const rg = ring(sx, sy); let s = 0;
+    for (let i = 0; i < rg.length; i++) { const a = rg[i], b = ref[i]; s += (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2; }
+    s *= 1 + dist * 0.05;
+    if (s < bs) { bs = s; best = [sx / W, sy / H]; }
+  }
+  if (!best) { const aspect = st.R.W / st.R.H; best = [clamp(u + r * 2.5 / Math.min(1, aspect) * (u > 0.5 ? -1 : 1), 0, 1), v]; }
+  return best;
+}
+
+/* ================= GESTURES & OVERLAY ================= */
+const ptrs = new Map();
+let G = null, lastTap = 0, pressT = null;
+function localXY(e) { const r = $('#ov').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function ovDown(e) {
+  if (!st.cur) return;
+  $('#ov').setPointerCapture(e.pointerId);
+  const [x, y] = localXY(e); ptrs.set(e.pointerId, { x, y });
+  if (ptrs.size === 2) {
+    if (G && G.kind === 'paint') finishPaint();
+    clearTimeout(pressT); if (st.bypass) { st.bypass = false; requestRender(); }
+    const [a, b] = [...ptrs.values()];
+    const fr = frameRect(), mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+    G = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: st.view.z, fm: [(mid[0] - fr.x) / fr.w, (mid[1] - fr.y) / fr.h] };
+    return;
+  }
+  if (ptrs.size > 2) return;
+  G = startSingle(x, y);
+}
+function ovMove(e) {
+  const [x, y] = localXY(e);
+  if (st.tab === 'mask') { st.cursor = [x, y]; }
+  if (!ptrs.has(e.pointerId)) { if (st.tab === 'mask') drawOverlay(); return; }
+  ptrs.set(e.pointerId, { x, y });
+  if (!G) return;
+  if (G.kind === 'pinch' && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()], b0 = baseFrame();
+    const z = clamp(G.z0 * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, G.d0), 1, 10), mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+    st.view.z = z;
+    st.view.px = mid[0] - G.fm[0] * b0.w * z - st.cssW / 2 + b0.w * z / 2;
+    st.view.py = mid[1] - G.fm[1] * b0.h * z - st.cssH / 2 + b0.h * z / 2;
+    clampPan(); requestRender(); return;
+  }
+  if (G.move) G.move(x, y);
+}
+function ovUp(e) {
+  const had = ptrs.has(e.pointerId); ptrs.delete(e.pointerId);
+  if (!had) return;
+  if (G && G.kind === 'pinch') { if (ptrs.size === 0) G = null; return; }
+  if (G && G.up) G.up();
+  G = null;
+}
+function startSingle(x, y) {
+  const now = Date.now(), fr = frameRect();
+  const pan = { kind: 'pan', sx: x, sy: y, px: st.view.px, py: st.view.py, moved: false,
+    move(nx, ny) { if (Math.hypot(nx - this.sx, ny - this.sy) > 8) { this.moved = true; clearTimeout(pressT); if (st.bypass) { st.bypass = false; } }
+      if (st.view.z > 1) { st.view.px = this.px + nx - this.sx; st.view.py = this.py + ny - this.sy; clampPan(); requestRender(); } },
+    up() {
+      clearTimeout(pressT);
+      if (st.bypass) { st.bypass = false; requestRender(); return; }
+      if (!this.moved) {
+        if (now - lastTap < 320) { // double tap: zoom toggle
+          lastTap = 0;
+          if (st.view.z > 1.05) st.view = { z: 1, px: 0, py: 0 };
+          else {
+            // zoom so one image pixel ≈ one screen pixel (100%), at least 2.5×, keeping the tapped point under the finger
+            const b0 = baseFrame(), [Wo] = orientedSize(st.R.W, st.R.H, st.S.geo.rot90);
+            const z = clamp(Math.max(2.5, dispCrop().w * Wo / (b0.w * st.dpr)), 1.5, 10), fm = [(x - fr.x) / fr.w, (y - fr.y) / fr.h];
+            st.view.z = z;
+            st.view.px = x - fm[0] * b0.w * z - st.cssW / 2 + b0.w * z / 2;
+            st.view.py = y - fm[1] * b0.h * z - st.cssH / 2 + b0.h * z / 2;
+            clampPan();
+          }
+          requestRender();
+        } else lastTap = now;
+      }
+    } };
+  const startPress = () => { clearTimeout(pressT); pressT = setTimeout(() => { if (!pan.moved) { st.bypass = true; requestRender(); } }, 380); };
+  if (st.tab === 'crop') return cropGesture(x, y) || pan;
+  if (st.tab === 'heal') return healGesture(x, y) || pan;
+  if (st.tab === 'mask') { const m = st.S.masks.find(q => q.id === st.selMask); if (m) { const g = maskGesture(m, x, y); if (g) return g; } }
+  startPress();
+  return pan;
+}
+
+/* crop gesture in q-space (oriented, straightened px, centre origin) */
+function cropGesture(x, y) {
+  const g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90), fr = frameRect(), bb = bboxCrop(g, Wo, Ho);
+  const bw = bb.w * Wo, bh = bb.h * Ho;
+  const toQ = (sx, sy) => [(sx - fr.x) / fr.w * bw - bw / 2, (sy - fr.y) / fr.h * bh - bh / 2];
+  const toS = (qx, qy) => [fr.x + (qx + bw / 2) / bw * fr.w, fr.y + (qy + bh / 2) / bh * fr.h];
+  const c = g.crop, x0 = c.cx * Wo - c.w * Wo / 2, x1 = c.cx * Wo + c.w * Wo / 2, y0 = c.cy * Ho - c.h * Ho / 2, y1 = c.cy * Ho + c.h * Ho / 2;
+  const [sx0, sy0] = toS(x0, y0), [sx1, sy1] = toS(x1, y1);
+  const near = (a, b) => Math.abs(a - b) < 30;
+  let hx = null, hy = null;
+  if (near(x, sx0)) hx = 0; else if (near(x, sx1)) hx = 1;
+  if (near(y, sy0)) hy = 0; else if (near(y, sy1)) hy = 1;
+  const inside = x > sx0 && x < sx1 && y > sy0 && y < sy1;
+  const ratio = aspectRatio();
+  if (hx == null && hy == null && !inside) return null;
+  if (ratio && (hx == null) !== (hy == null)) { if (!inside) return null; hx = hy = null; }
+  const start = clone(c), [q0x, q0y] = toQ(x, y), minPx = 40 * bw / fr.w;
+  return {
+    kind: 'crop',
+    move(nx, ny) {
+      const [qx, qy] = toQ(nx, ny); let nx0 = x0, nx1 = x1, ny0 = y0, ny1 = y1;
+      if (hx == null && hy == null) { const dx = qx - q0x, dy = qy - q0y; nx0 += dx; nx1 += dx; ny0 += dy; ny1 += dy; }
+      else {
+        if (hx === 0) nx0 = Math.min(qx, x1 - minPx); if (hx === 1) nx1 = Math.max(qx, x0 + minPx);
+        if (hy === 0) ny0 = Math.min(qy, y1 - minPx); if (hy === 1) ny1 = Math.max(qy, y0 + minPx);
+        if (ratio && hx != null && hy != null) {
+          const ax = hx === 0 ? x1 : x0, ay = hy === 0 ? y1 : y0; let w = Math.abs((hx === 0 ? nx0 : nx1) - ax), hh = Math.abs((hy === 0 ? ny0 : ny1) - ay);
+          if (w / hh > ratio) w = hh * ratio; else hh = w / ratio;
+          if (hx === 0) nx0 = ax - w; else nx1 = ax + w; if (hy === 0) ny0 = ay - hh; else ny1 = ay + hh;
+        }
+      }
+      const cand = { cx: (nx0 + nx1) / 2 / Wo, cy: (ny0 + ny1) / 2 / Ho, w: (nx1 - nx0) / Wo, h: (ny1 - ny0) / Ho };
+      g.crop = towardValid(start, cand, g, Wo, Ho); g.auto = false; requestRender();
+    },
+    up() { commit(); tabDots(); }
+  };
+}
+
+/* heal: tap to add/select, drag dest or source */
+function healGesture(x, y) {
+  const S = st.S, L = Math.max(st.R.W, st.R.H), k = screenPerImagePx();
+  let hit = -1, which = null;
+  S.spots.forEach((s, i) => {
+    const [dx, dy] = uvToView(s.x, s.y), [sx, sy] = uvToView(s.sx, s.sy), rr = Math.max(16, s.r * L * k);
+    if (Math.hypot(x - sx, y - sy) < rr) { hit = i; which = 'src'; }
+    if (Math.hypot(x - dx, y - dy) < rr) { hit = i; which = 'dst'; }
+  });
+  const sx0 = x, sy0 = y;
+  if (hit >= 0) {
+    const s = S.spots[hit], o = clone(s); st.selSpot = hit; renderPanel(); requestRender();
+    const [u0, v0] = viewToUV(x, y);
+    return { kind: 'spot', moved: false, move(nx, ny) {
+      if (Math.hypot(nx - sx0, ny - sy0) < 4 && !this.moved) return; this.moved = true;
+      const [u, v] = viewToUV(nx, ny), du = u - u0, dv = v - v0;
+      if (which === 'src') { s.sx = o.sx + du; s.sy = o.sy + dv; } else { s.x = o.x + du; s.y = o.y + dv; s.sx = o.sx + du; s.sy = o.sy + dv; }
+      requestRender(); }, up() { if (this.moved) commit(); } };
+  }
+  return { kind: 'tap', moved: false, move(nx, ny) { if (Math.hypot(nx - sx0, ny - sy0) > 10) this.moved = true; },
+    up() {
+      if (this.moved) return;
+      const [u, v] = viewToUV(x, y); if (u < 0 || v < 0 || u > 1 || v > 1) return;
+      if (S.spots.length >= 64) { toast('ລຶບໄດ້ສູງສຸດ 64 ຈຸດຕໍ່ຮູບ'); return; }
+      const r = st.heal.size, [su, sv] = findSource(u, v, r);
+      S.spots.push({ x: u, y: v, sx: su, sy: sv, r, f: 0.5, mode: st.heal.mode, o: 1 });
+      st.selSpot = S.spots.length - 1; commit(); renderPanel(); requestRender();
+    } };
+}
+
+/* masks: handles or brush painting */
+let paintStroke = null;
+function maskGesture(m, x, y) {
+  const L = Math.max(st.R.W, st.R.H), W = st.R.W, H = st.R.H;
+  if (m.type === 'brush') {
+    const B = st.brush; const [u, v] = viewToUV(x, y);
+    // brush size is divided by zoom so it looks the same size on screen when zoomed in
+    paintStroke = { m, s: { s: B.size / st.view.z, f: B.feather, fl: B.flow, e: B.erase, pts: [u, v] } };
+    m.p.strokes.push(paintStroke.s);
+    const c = maskCanvas(m); drawStroke(c.getContext('2d'), paintStroke.s, c.width, c.height, 0); st.R.setMask(m.id, c); st.S._mv++; requestRender();
+    return { kind: 'paint', move(nx, ny) { const [a, b] = viewToUV(nx, ny); const s = paintStroke.s, n = s.pts.length; s.pts.push(a, b);
+        const c = maskCanvas(m); drawStroke(c.getContext('2d'), s, c.width, c.height, n); st.R.setMask(m.id, c); st.S._mv++; st.cursor = [nx, ny]; requestRender(); },
+      up() { finishPaint(); } };
+  }
+  const near = (u, v, r = 26) => { const [a, b] = uvToView(u, v); return Math.hypot(a - x, b - y) < r; };
+  const p = m.p, o = clone(p), [u0, v0] = viewToUV(x, y);
+  const end = () => { commit(); };
+  if (m.type === 'linear') {
+    let which = near(p.x1, p.y1) ? 1 : near(p.x2, p.y2) ? 2 : near((p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2, 34) ? 0 : -1;
+    if (which < 0) return null;
+    return { kind: 'mh', move(nx, ny) { const [u, v] = viewToUV(nx, ny), du = u - u0, dv = v - v0;
+      if (which === 1) { p.x1 = o.x1 + du; p.y1 = o.y1 + dv; } else if (which === 2) { p.x2 = o.x2 + du; p.y2 = o.y2 + dv; } else { p.x1 = o.x1 + du; p.y1 = o.y1 + dv; p.x2 = o.x2 + du; p.y2 = o.y2 + dv; }
+      redrawMask(m); requestRender(); }, up: end };
+  }
+  if (m.type === 'radial') {
+    const ax = (t, rx, ry) => { const c = Math.cos(p.a), s = Math.sin(p.a); return [p.cx + (c * Math.cos(t) * rx - s * Math.sin(t) * ry) * L / W, p.cy + (s * Math.cos(t) * rx + c * Math.sin(t) * ry) * L / H]; };
+    const [ex, ey] = ax(0, p.rx, p.ry), [fx, fy] = ax(-Math.PI / 2, p.rx, p.ry);
+    let which = near(ex, ey) ? 'x' : near(fx, fy) ? 'y' : near(p.cx, p.cy, 34) ? 'c' : -1;
+    if (which === -1) {
+      // inside ellipse → move
+      const c = Math.cos(-p.a), s = Math.sin(-p.a), dx = (u0 - p.cx) * W / L, dy = (v0 - p.cy) * H / L;
+      const lx = c * dx - s * dy, ly = s * dx + c * dy;
+      if ((lx / p.rx) ** 2 + (ly / p.ry) ** 2 < 1) which = 'c'; else return null;
+    }
+    return { kind: 'mh', move(nx, ny) {
+      const [u, v] = viewToUV(nx, ny);
+      if (which === 'c') { p.cx = o.cx + u - u0; p.cy = o.cy + v - v0; }
+      else { const dx = (u - p.cx) * W / L, dy = (v - p.cy) * H / L, d = Math.max(0.01, Math.hypot(dx, dy));
+        if (which === 'x') { p.rx = d; p.a = Math.atan2(dy, dx); } else { p.ry = d; p.a = Math.atan2(dy, dx) + Math.PI / 2; } }
+      redrawMask(m); requestRender(); }, up: end };
+  }
+  return null;
+}
+function finishPaint() { if (paintStroke) { paintStroke = null; commit(); } }
+
+/* overlay drawing (CSS px coordinates) */
+function drawOverlay() {
+  const cv = $('#ov'), x = cv.getContext('2d'), d = st.dpr;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height); x.setTransform(d, 0, 0, d, 0, 0);
+  if (!st.cur || st.bypass) return;
+  if (st.tab === 'crop') drawCropOv(x);
+  else if (st.tab === 'heal') drawSpotsOv(x);
+  else if (st.tab === 'mask') { const m = st.S.masks.find(q => q.id === st.selMask); if (m) drawMaskOv(x, m); }
+}
+function polyUV(x, pts, close) { x.beginPath(); pts.forEach(([u, v], i) => { const [a, b] = uvToView(u, v); i ? x.lineTo(a, b) : x.moveTo(a, b); }); if (close) x.closePath(); }
+function drawCropOv(x) {
+  const g = st.S.geo, [Wo, Ho] = orientedSize(st.R.W, st.R.H, g.rot90), fr = frameRect(), bb = bboxCrop(g, Wo, Ho), bw = bb.w * Wo, bh = bb.h * Ho, c = g.crop;
+  const toS = (qx, qy) => [fr.x + (qx + bw / 2) / bw * fr.w, fr.y + (qy + bh / 2) / bh * fr.h];
+  const [a0, b0] = toS(c.cx * Wo - c.w * Wo / 2, c.cy * Ho - c.h * Ho / 2), [a1, b1] = toS(c.cx * Wo + c.w * Wo / 2, c.cy * Ho + c.h * Ho / 2);
+  x.fillStyle = 'rgba(10,11,13,.62)'; x.beginPath(); x.rect(0, 0, st.cssW, st.cssH); x.rect(a0, b0, a1 - a0, b1 - b0); x.fill('evenodd');
+  x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 1;
+  for (let i = 1; i < 3; i++) { const xx = a0 + (a1 - a0) * i / 3, yy = b0 + (b1 - b0) * i / 3; x.beginPath(); x.moveTo(xx, b0); x.lineTo(xx, b1); x.moveTo(a0, yy); x.lineTo(a1, yy); x.stroke(); }
+  x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.strokeRect(a0, b0, a1 - a0, b1 - b0);
+  x.lineWidth = 4; x.lineCap = 'round'; const L = 18;
+  for (const [cx, cy, sx, sy] of [[a0, b0, 1, 1], [a1, b0, -1, 1], [a0, b1, 1, -1], [a1, b1, -1, -1]]) { x.beginPath(); x.moveTo(cx + sx * L, cy); x.lineTo(cx, cy); x.lineTo(cx, cy + sy * L); x.stroke(); }
+  if (!aspectRatio()) for (const [cx, cy, hz] of [[(a0 + a1) / 2, b0, 1], [(a0 + a1) / 2, b1, 1], [a0, (b0 + b1) / 2, 0], [a1, (b0 + b1) / 2, 0]]) { x.beginPath(); hz ? (x.moveTo(cx - 10, cy), x.lineTo(cx + 10, cy)) : (x.moveTo(cx, cy - 10), x.lineTo(cx, cy + 10)); x.stroke(); }
+}
+function circleUV(cu, cv, r) { const L = Math.max(st.R.W, st.R.H), pts = []; for (let k = 0; k <= 40; k++) { const t = k / 40 * Math.PI * 2; pts.push([cu + Math.cos(t) * r * L / st.R.W, cv + Math.sin(t) * r * L / st.R.H]); } return pts; }
+function drawSpotsOv(x) {
+  st.S.spots.forEach((s, i) => {
+    const sel = i === st.selSpot;
+    x.lineWidth = sel ? 2.2 : 1.4;
+    x.strokeStyle = 'rgba(0,0,0,.55)'; polyUV(x, circleUV(s.x, s.y, s.r), true); x.lineWidth += 1.5; x.stroke(); x.lineWidth -= 1.5;
+    x.strokeStyle = sel ? '#f0b35b' : 'rgba(255,255,255,.9)'; polyUV(x, circleUV(s.x, s.y, s.r), true); x.stroke();
+    if (sel) {
+      x.setLineDash([5, 4]); polyUV(x, circleUV(s.sx, s.sy, s.r), true); x.stroke(); x.setLineDash([]);
+      const [a, b] = uvToView(s.x, s.y), [c, d] = uvToView(s.sx, s.sy); x.globalAlpha = 0.6; x.beginPath(); x.moveTo(a, b); x.lineTo(c, d); x.stroke(); x.globalAlpha = 1;
+    }
+  });
+}
+function handle(x, u, v, r = 9, fill = '#f0b35b') { const [a, b] = uvToView(u, v); x.beginPath(); x.arc(a, b, r, 0, 7); x.fillStyle = fill; x.fill(); x.lineWidth = 2; x.strokeStyle = '#111'; x.stroke(); }
+function drawMaskOv(x, m) {
+  const p = m.p, W = st.R.W, H = st.R.H, L = Math.max(W, H);
+  x.strokeStyle = 'rgba(255,255,255,.9)'; x.lineWidth = 1.5;
+  if (m.type === 'linear') {
+    const dx = (p.x2 - p.x1) * W, dy = (p.y2 - p.y1) * H, len = Math.hypot(dx, dy) || 1, nx = -dy / len * L * 1.5, ny = dx / len * L * 1.5;
+    const line = (u, v, dash) => { x.setLineDash(dash ? [6, 5] : []); polyUV(x, [[u - nx / W, v - ny / H], [u + nx / W, v + ny / H]]); x.stroke(); };
+    line(p.x1, p.y1, false); line(p.x2, p.y2, true); line((p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2, true); x.setLineDash([]);
+    handle(x, p.x1, p.y1); handle(x, p.x2, p.y2, 7, '#fff'); handle(x, (p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2, 6, '#fff');
+  } else if (m.type === 'radial') {
+    const pts = []; const c = Math.cos(p.a), s = Math.sin(p.a);
+    for (let k = 0; k <= 64; k++) { const t = k / 64 * Math.PI * 2, ex = Math.cos(t) * p.rx, ey = Math.sin(t) * p.ry; pts.push([p.cx + (c * ex - s * ey) * L / W, p.cy + (s * ex + c * ey) * L / H]); }
+    polyUV(x, pts, true); x.stroke();
+    handle(x, p.cx, p.cy);
+    handle(x, p.cx + c * p.rx * L / W, p.cy + s * p.rx * L / H, 7, '#fff');
+    handle(x, p.cx + s * p.ry * L / W, p.cy - c * p.ry * L / H, 7, '#fff');
+  } else if (m.type === 'brush' && st.cursor) {
+    const r = st.brush.size / st.view.z * L / 2 * screenPerImagePx();
+    x.beginPath(); x.arc(st.cursor[0], st.cursor[1], r, 0, 7); x.strokeStyle = st.brush.erase ? '#ef6b6b' : '#fff'; x.stroke();
+    x.beginPath(); x.arc(st.cursor[0], st.cursor[1], r * (1 - st.brush.feather * 0.9), 0, 7); x.globalAlpha = 0.5; x.stroke(); x.globalAlpha = 1;
+  }
+}
+
+/* ================= EXPORT ================= */
+const MAX_PIXELS = 16.7e6;
+function exportSheet(ids) {
+  const root = $('#sheetRoot'), opts = LS.get('exportOpts', { size: 'full', q: 92 });
+  root.innerHTML = '';
+  const sizes = [['full', 'ເຕັມ', 'ສູງສຸດ 16MP'], ['2048', 'ກາງ', '2048 px'], ['1080', 'ໂຊຊຽວ', '1080 px']];
+  const sheet = h('div', { class: 'sheet' });
+  const draw = () => {
+    sheet.innerHTML = '';
+    sheet.append(h('div', { class: 'grab' }), h('h2', {}, ids.length > 1 ? `ສົ່ງອອກ ${ids.length} ຮູບ` : 'ສົ່ງອອກຮູບ'),
+      h('p', { class: 'note' }, 'ໄຟລ໌ JPG. ຮູບຕົ້ນສະບັບຈະບໍ່ຖືກປ່ຽນ.'),
+      h('div', { class: 'opts' }, sizes.map(([k, lo, sm]) => h('button', { class: 'opt' + (opts.size === k ? ' on' : ''), onclick: () => { opts.size = k; draw(); } }, lo, h('small', {}, sm)))),
+      slider({ lo: 'ຄຸນນະພາບ', en: 'Quality', id: 'xq', min: 60, max: 100, def: 92, fmt: v => Math.round(v), get: () => opts.q, set: v => opts.q = v }),
+      h('div', { class: 'btnrow' }, h('button', { class: 'btn primary', style: 'flex:1', onclick: () => { LS.set('exportOpts', opts); runExport(ids, opts, sheet); } }, 'ສ້າງໄຟລ໌'),
+        h('button', { class: 'btn ghost', onclick: () => root.innerHTML = '' }, 'ປິດ')));
+  };
+  draw();
+  const bg = h('div', { class: 'sheet-bg', onclick: e => { if (e.target === bg) root.innerHTML = ''; } }, sheet);
+  root.append(bg);
+}
+async function renderExport(meta, opts) {
+  const S = Object.assign(defaults(), clone(meta.settings || {})); S.geo = Object.assign(defaults().geo, S.geo || {}); S._mv = 0;
+  const blob = await DB.getBlob(meta.id), img = await decode(blob);
+  const cv = document.createElement('canvas');
+  const R = new Renderer(cv, { preserve: true });
+  try {
+    const W0 = img.width, H0 = img.height, g = S.geo;
+    let s = Math.min(1, R.maxTex / Math.max(W0, H0));
+    const [Wo, Ho] = orientedSize(W0 * s, H0 * s, g.rot90);
+    let ow = g.crop.w * Wo, oh = g.crop.h * Ho;
+    const want = opts.size === 'full' ? Infinity : +opts.size;
+    const f = Math.min(1, want / Math.max(ow, oh), Math.sqrt(MAX_PIXELS / (ow * oh)));
+    s *= f; ow = Math.round(ow * f); oh = Math.round(oh * f);
+    const src = scaledCanvas(img, Math.max(W0, H0) * s);
+    if (img.close) img.close();
+    R.setSource(src);
+    R.setLut(S.curve);
+    const prevR = st.R, prevCv = new Map(st.maskCv); // mask canvases are drawn against R dims
+    st.R = R; st.maskCv = new Map();
+    try {
+      for (const m of S.masks) { const c = maskCanvas(m, 2048); const x = c.getContext('2d'); paintMask(x, m, c.width, c.height); R.setMask(m.id, c); }
+    } finally { st.R = prevR; st.maskCv = prevCv; }
+    cv.width = ow; cv.height = oh;
+    R.process(S);
+    R.output(S, { fr: [0, 0, ow, oh], crop: g.crop, bg: [0, 0, 0], outside: 0 }, null);
+    const out = await new Promise(r => cv.toBlob(r, 'image/jpeg', opts.q / 100));
+    if (!out) throw new Error('toBlob');
+    return { blob: out, w: ow, h: oh };
+  } finally { R.destroy(); }
+}
+async function runExport(ids, opts, sheet) {
+  if (st.cur) await saveNow();
+  sheet.innerHTML = '';
+  const bar = h('i'); const label = h('p', { class: 'note' }, 'ກຳລັງສ້າງໄຟລ໌…');
+  sheet.append(h('div', { class: 'grab' }), h('h2', {}, 'ກຳລັງສົ່ງອອກ'), label, h('div', { class: 'progress' }, bar));
+  const files = [], urls = [];
+  for (let i = 0; i < ids.length; i++) {
+    const meta = st.metas.find(m => m.id === ids[i]); if (!meta) continue;
+    label.textContent = `ຮູບທີ ${i + 1} / ${ids.length}: ${meta.name}`;
+    try {
+      const r = await renderExport(meta, opts);
+      const name = (meta.name || 'photo').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) + '-saengsi.jpg';
+      files.push(new File([r.blob], name, { type: 'image/jpeg' })); urls.push([URL.createObjectURL(r.blob), name, r]);
+    } catch (e) { console.error(e); toast('ສົ່ງອອກ ' + meta.name + ' ບໍ່ສຳເລັດ: ' + e.message, 4000); }
+    bar.style.width = ((i + 1) / ids.length * 100) + '%';
+    await new Promise(r => setTimeout(r, 30));
+  }
+  sheet.innerHTML = '';
+  const canShare = !!(navigator.canShare && files.length && navigator.canShare({ files }));
+  const dl = async () => {
+    // inside a claude.ai artifact, files are saved through the viewer's download capability
+    const cap = window.claude && window.claude.use ? await window.claude.use('downloads').catch(() => null) : null;
+    if (cap) {
+      for (const f of files) {
+        try { await cap.save({ filename: f.name, data: f }); }
+        catch (e) { if (e && e.code === 'declined') break; toast('ບັນທຶກບໍ່ໄດ້ຢູ່ບ່ອນນີ້, ກົດຄ້າງທີ່ຮູບແທນ'); break; }
+      }
+      return;
+    }
+    for (const [u, n] of urls) { const a = document.createElement('a'); a.href = u; a.download = n; document.body.append(a); a.click(); a.remove(); await new Promise(r => setTimeout(r, 250)); }
+  };
+  sheet.append(h('div', { class: 'grab' }), h('h2', {}, `ພ້ອມແລ້ວ ${files.length} ໄຟລ໌`),
+    h('div', { class: 'btnrow' },
+      h('button', { class: 'btn primary', onclick: dl }, 'ດາວໂຫຼດ'),
+      canShare ? h('button', { class: 'btn', onclick: async () => { try { await navigator.share({ files }); } catch (e) { if (e.name !== 'AbortError') toast('ແບ່ງປັນບໍ່ໄດ້ໃນ browser ນີ້, ໃຊ້ ດາວໂຫຼດ ແທນ'); } } }, 'ແບ່ງປັນ / ບັນທຶກລົງຄັງຮູບ') : null,
+      h('button', { class: 'btn ghost', onclick: () => $('#sheetRoot').innerHTML = '' }, 'ປິດ')),
+    h('p', { class: 'note' }, 'ຖ້າປຸ່ມດາວໂຫຼດບໍ່ເຮັດວຽກ: ກົດຄ້າງທີ່ຮູບຂ້າງລຸ່ມ ແລ້ວເລືອກ "ບັນທຶກຮູບ".'),
+    h('div', { class: 'results' }, urls.map(([u, n, r]) => h('figure', {}, h('img', { src: u, alt: n }), h('figcaption', {}, `${r.w}×${r.h} · ${(r.blob.size / 1048576).toFixed(1)} MB`)))));
+}
+
+/* batch actions */
+function batchPresetSheet() {
+  const root = $('#sheetRoot'); root.innerHTML = '';
+  const all = [...LS.get('presets', []).map(p => ({ ...p, user: true })), ...PRESETS];
+  const sheet = h('div', { class: 'sheet' }, h('div', { class: 'grab' }), h('h2', {}, `ໃສ່ໂປຣເຊັດໃຫ້ ${st.selected.size} ຮູບ`),
+    h('p', { class: 'note' }, 'ແທນທີ່ການປັບແສງ ແລະ ສີ ເດີມ. ການຕັດ, ມາສ໌ກ ແລະ ຈຸດທີ່ລຶບ ຍັງຢູ່ຄືເກົ່າ.'),
+    h('div', { class: 'chips', style: 'flex-wrap:wrap' }, all.map(pr => h('button', { class: 'chip', style: pr.user ? 'color:var(--warm)' : '', onclick: async () => {
+      for (const id of st.selected) { const m = st.metas.find(x => x.id === id); const S = Object.assign(defaults(), m.settings || {}); resetDev(S); applyFlat(S, pr.s, 1); m.settings = S; await DB.putMeta(m); await refreshThumb(m); }
+      root.innerHTML = ''; toast(`ໃສ່ "${pr.name}" ແລ້ວ`); renderGrid();
+    } }, pr.name))),
+    h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', onclick: () => root.innerHTML = '' }, 'ປິດ')));
+  const bg = h('div', { class: 'sheet-bg', onclick: e => { if (e.target === bg) root.innerHTML = ''; } }, sheet); root.append(bg);
+}
+async function refreshThumb(meta) {
+  try { const r = await renderExport(meta, { size: '360', q: 82 }); meta.thumb = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(r.blob); }); await DB.putMeta(meta); }
+  catch (e) { console.warn(e); }
+}
+function deleteSheet() {
+  const root = $('#sheetRoot'); root.innerHTML = ''; const n = st.selected.size;
+  const sheet = h('div', { class: 'sheet' }, h('div', { class: 'grab' }), h('h2', {}, `ລຶບ ${n} ຮູບອອກຈາກ app?`),
+    h('p', { class: 'note' }, 'ລຶບສະເພາະໃນ app ນີ້ເທົ່ານັ້ນ, ຮູບໃນຄັງຮູບຂອງໂທລະສັບບໍ່ຖືກລຶບ.'),
+    h('div', { class: 'btnrow' }, h('button', { class: 'btn danger', onclick: async () => { for (const id of st.selected) await DB.del(id); root.innerHTML = ''; st.selected.clear(); st.selecting = false; await loadLibrary(); toast(`ລຶບແລ້ວ ${n} ຮູບ`); } }, 'ລຶບ'),
+      h('button', { class: 'btn ghost', onclick: () => root.innerHTML = '' }, 'ຍົກເລີກ')));
+  const bg = h('div', { class: 'sheet-bg', onclick: e => { if (e.target === bg) root.innerHTML = ''; } }, sheet); root.append(bg);
+}
+
+/* ================= BOOT ================= */
+function wire() {
+  $('#btnAdd').onclick = () => $('#fileIn').click();
+  $('#fileIn').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+  $('#btnSelect').onclick = () => toggleSelecting(!st.selecting);
+  $('#bPreset').onclick = batchPresetSheet;
+  $('#bPaste').onclick = async () => {
+    for (const id of st.selected) { const m = st.metas.find(x => x.id === id); const S = Object.assign(defaults(), m.settings || {}); resetDev(S); applyFlat(S, st.copied, 1); m.settings = S; await DB.putMeta(m); await refreshThumb(m); }
+    toast(`ວາງການແກ້ໄຂໃສ່ ${st.selected.size} ຮູບແລ້ວ`); renderGrid();
+  };
+  $('#bExport').onclick = () => exportSheet([...st.selected]);
+  $('#bDelete').onclick = deleteSheet;
+  $('#btnBack').onclick = closeEditor;
+  $('#btnUndo').onclick = () => { if (st.hi > 0) restore(st.hi - 1); };
+  $('#btnRedo').onclick = () => { if (st.hi < st.hist.length - 1) restore(st.hi + 1); };
+  $('#btnExport').onclick = () => exportSheet([st.cur.id]);
+  const cmp = $('#btnCompare');
+  const on = e => { e.preventDefault(); st.bypass = true; requestRender(); }, off = () => { if (st.bypass) { st.bypass = false; requestRender(); } };
+  cmp.addEventListener('pointerdown', on); cmp.addEventListener('pointerup', off); cmp.addEventListener('pointerleave', off); cmp.addEventListener('pointercancel', off);
+  cmp.addEventListener('contextmenu', e => e.preventDefault());
+  const ov = $('#ov');
+  ov.addEventListener('pointerdown', ovDown); ov.addEventListener('pointermove', ovMove);
+  ov.addEventListener('pointerup', ovUp); ov.addEventListener('pointercancel', ovUp);
+  ov.addEventListener('contextmenu', e => e.preventDefault());
+  new ResizeObserver(() => { if (!$('#ed').hidden) { sizeCanvases(); requestRender(); if (st.tab === 'curve') drawCurve(); } }).observe($('#stage'));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  // drag & drop on desktop
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+}
+async function boot() {
+  wire();
+  await DB.open();
+  let metas = await DB.allMeta();
+  if (!metas.length && !LS.get('seeded', false)) { try { await makeSample(); LS.set('seeded', true); } catch (e) { console.warn(e); } }
+  await loadLibrary();
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    try { navigator.serviceWorker.register('sw.js').catch(() => { }); } catch (e) { }
+  }
+}
+boot();
+
+</script>
+</body>
+</html>

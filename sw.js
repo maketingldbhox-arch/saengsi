@@ -1,5 +1,5 @@
 /* ແສງສີ service worker — app works offline after the first visit */
-const VERSION = 'saengsi-v1.1.0';
+const VERSION = 'saengsi-v1.2.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -2094,6 +2094,7 @@ boot();
 
 /* ================= ແສງສີ — Gemini AI ================= */
 'use strict';
+const APP_VERSION = '1.2';
 const AI_DEF = { key: '', imgModel: 'gemini-nano-banana-2.1', visModel: 'gemini-3.8-flash', size: '2K' };
 const AIcfg = () => Object.assign({}, AI_DEF, LS.get('gemini', {}));
 const GEM_API = 'https://generativelanguage.googleapis.com/v1beta';
@@ -2118,7 +2119,7 @@ function apiError(res, model) {
   if (RETRYABLE(res.status)) return new AIError('ຕອນນີ້ server ຂອງ Gemini ມີຄົນໃຊ້ຫຼາຍ (ບໍ່ແມ່ນບັນຫາຂອງ key). ລໍ 1–2 ນາທີ ແລ້ວລອງໃໝ່.', 'busy');
   if (res.status === 403 || /billing|free tier|not available|permission/i.test(m))
     return new AIError(`key ນີ້ໃຊ້ model "${model}" ບໍ່ໄດ້. Model ແກ້/ສ້າງຮູບ ຕ້ອງເປີດ billing (ຈ່າຍເງິນ) ໃນ Google AI Studio ກ່ອນ.`, 'perm');
-  if (res.status === 404 || /not found|is not supported/i.test(m)) return new AIError(`ບໍ່ພົບ model "${model}". ກວດຊື່ model ໃນການຕັ້ງຄ່າ AI.`, 'model');
+  if (res.status === 404 || /not found|is not supported/i.test(m)) return new AIError(`key ນີ້ໃຊ້ model "${model}" ບໍ່ໄດ້ (Google: ${m.slice(0, 120)}). ກົດ ☀ → ຄົ້ນຫາ model ເພື່ອເລືອກ model ອື່ນ.`, 'model');
   return new AIError(`Gemini ຕອບກັບຜິດພາດ (${res.status}): ${m.slice(0, 160)}`, 'api');
 }
 function collect(j) {
@@ -2141,25 +2142,57 @@ const AI_BACKUP = { text: ['gemini-3.6-flash', 'gemini-3.5-flash-lite'], image: 
 const RETRYABLE = st_ => st_ === 500 || st_ === 502 || st_ === 503 || st_ === 504;
 const sleep = (ms, signal) => new Promise((res, rej) => { const t = setTimeout(res, ms); if (signal) signal.addEventListener('abort', () => { clearTimeout(t); rej(new AIError('ຍົກເລີກແລ້ວ', 'abort')); }, { once: true }); });
 async function geminiCall(opts) {
-  const { model, out = 'text', signal, onStatus } = opts;
-  const chain = [model, ...(AI_BACKUP[out === 'image' ? 'image' : 'text'] || [])].filter((m, i, a) => m && a.indexOf(m) === i);
-  let last = null;
+  const { model, out = 'text', signal, onStatus } = opts, kind = out === 'image' ? 'image' : 'text';
+  const chain = [model, ...(AI_BACKUP[kind] || [])].filter((m, i, a) => m && a.indexOf(m) === i);
+  let last = null, why = '', discovered = false;
   for (let mi = 0; mi < chain.length; mi++) {
     const m = chain[mi];
     for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt || mi) onStatus && onStatus(mi ? `${chain[mi - 1]} ມີຄົນໃຊ້ຫຼາຍ, ກຳລັງລອງ ${m}…` : `Gemini ມີຄົນໃຊ້ຫຼາຍ, ກຳລັງລອງໃໝ່ (${attempt + 1}/3)…`);
+      if (attempt) onStatus && onStatus(`Gemini ມີຄົນໃຊ້ຫຼາຍ, ກຳລັງລອງໃໝ່ (${attempt + 1}/3)…`);
+      else if (mi) onStatus && onStatus(`${why} ກຳລັງລອງ ${m}…`);
       const res = await geminiOnce(Object.assign({}, opts, { model: m }));
       if (res.ok) { const r = collect(res.json); r.model = m;
         if (out === 'image' && !r.images.length) throw new AIError('Gemini ບໍ່ໄດ້ສົ່ງຮູບກັບມາ' + (r.text ? ': ' + r.text.slice(0, 200) : '. ລອງປ່ຽນຄຳສັ່ງໃຫ້ຊັດເຈນຂຶ້ນ.'), 'noimage');
+        if (m !== model && discovered) { // remember the model that works for this key
+          const c = LS.get('gemini', {}); c[kind === 'image' ? 'imgModel' : 'visModel'] = m; LS.set('gemini', c);
+          toast(`ປ່ຽນໄປໃຊ້ model ${m} ແລ້ວ (ບັນທຶກໄວ້ໃນການຕັ້ງຄ່າ)`, 4000);
+        }
         return r; }
       last = { res, m };
-      if (RETRYABLE(res.status) || res.status === 0) { if (attempt < 2) await sleep(1500 * (attempt + 1), signal); continue; }
+      if (RETRYABLE(res.status) || res.status === 0) { if (attempt < 2) { await sleep(1500 * (attempt + 1), signal); continue; } why = `${m} ມີຄົນໃຊ້ຫຼາຍ,`; break; }
       if (res.status === 429 && attempt === 0) { await sleep(4000, signal); continue; }
-      if (res.status === 404 && mi < chain.length - 1) break; // model name not available → next model
+      if (res.status === 404 || /not found|is not supported for/i.test(res.msg)) {
+        why = `ບໍ່ພົບ model ${m},`;
+        if (mi === chain.length - 1 && !discovered) { // ask Google which models this key can use
+          discovered = true; onStatus && onStatus('ກຳລັງຄົ້ນຫາ model ທີ່ key ນີ້ໃຊ້ໄດ້…');
+          const found = (await listModels(signal).catch(() => ({})))[kind] || [];
+          for (const f of found) if (!chain.includes(f)) chain.push(f);
+        }
+        break;
+      }
       throw apiError(res, m);
     }
   }
   throw apiError(last.res, last.m);
+}
+/* models available to this key, best first */
+async function listModels(signal) {
+  const c = AIcfg(); if (!c.key) throw new AIError('ຍັງບໍ່ໄດ້ໃສ່ Gemini API key', 'nokey');
+  let names = [], page = '';
+  for (let i = 0; i < 5; i++) {
+    const r = await fetch(`${GEM_API}/models?pageSize=1000${page ? '&pageToken=' + encodeURIComponent(page) : ''}`, { headers: { 'x-goog-api-key': c.key }, signal });
+    if (!r.ok) throw apiError({ status: r.status, msg: await r.text() }, 'list');
+    const j = await r.json();
+    names.push(...(j.models || []).filter(m => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace(/^models\//, '')));
+    if (!j.nextPageToken) break; page = j.nextPageToken;
+  }
+  const ver = n => { const m = n.match(/(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
+  const bad = /tts|audio|live|embed|transcribe|robotics|computer|translate|omni|veo|imagen|learnlm|gemma|aqa/i;
+  const image = names.filter(n => /image|nano-banana/i.test(n) && !bad.test(n))
+    .sort((a, b) => (/pro/i.test(a) - /pro/i.test(b)) || (/preview|exp/i.test(a) - /preview|exp/i.test(b)) || ver(b) - ver(a));
+  const text = names.filter(n => /^gemini-[\d.]+-flash(-lite)?(-preview)?(-\d+)?$/i.test(n) && !bad.test(n))
+    .sort((a, b) => (/lite/i.test(a) - /lite/i.test(b)) || (/preview/i.test(a) - /preview/i.test(b)) || ver(b) - ver(a));
+  return { image, text, all: names };
 }
 /* One request. Uses the Interactions API; falls back to generateContent if that endpoint is refused. */
 async function geminiOnce({ model, text, images = [], out = 'text', aspect, size, thinking, signal }) {
@@ -2552,10 +2585,10 @@ function aiSettingsSheet(reason) {
   const c = AIcfg(), sheet = h('div', { class: 'sheet' });
   const key = h('input', { id: 'aiKey', type: 'password', value: c.key, placeholder: 'ວາງ API key ທີ່ນີ້', autocomplete: 'off', spellcheck: 'false' });
   const im = h('input', { id: 'aiImg', value: c.imgModel, spellcheck: 'false' }), vm = h('input', { id: 'aiVis', value: c.visModel, spellcheck: 'false' });
-  const status = h('p', { class: 'note' });
+  const status = h('p', { class: 'note' }), found = h('div');
   const save = () => { LS.set('gemini', { key: key.value.trim(), imgModel: im.value.trim() || AI_DEF.imgModel, visModel: vm.value.trim() || AI_DEF.visModel, size: c.size }); };
   const sizeRow = h('div', { class: 'chips' }, ['1K', '2K', '4K'].map(k => h('button', { class: 'chip' + (c.size === k ? ' on' : ''), onclick: e => { c.size = k; save(); sizeRow.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === e.currentTarget)); } }, k)));
-  sheet.append(...[h('div', { class: 'grab' }), h('h2', {}, 'ຕັ້ງຄ່າ Gemini AI'),
+  sheet.append(...[h('div', { class: 'grab' }), h('h2', {}, 'ຕັ້ງຄ່າ Gemini AI ', h('small', { style: 'font-size:12px;color:var(--muted);font-weight:400' }, 'app ລຸ້ນ ' + APP_VERSION)),
     reason ? h('p', { class: 'note', style: 'color:var(--warm)' }, reason) : null,
     h('p', { class: 'note' }, 'ຂໍ API key ຟຣີທີ່ Google AI Studio (aistudio.google.com/apikey). Key ເກັບໄວ້ໃນໂທລະສັບເຄື່ອງນີ້ເທົ່ານັ້ນ.'),
     h('a', { href: 'https://aistudio.google.com/apikey', target: '_blank', rel: 'noopener', class: 'link' }, 'ເປີດ Google AI Studio ↗'),
@@ -2564,6 +2597,17 @@ function aiSettingsSheet(reason) {
     h('div', { class: 'field' }, h('label', { for: 'aiVis' }, 'Model ເບິ່ງຮູບ (AI ປັບສີ, AI ເລືອກ, ລົບພື້ນຫຼັງ) · ມີແບບຟຣີ'), vm),
     h('div', { class: 'field' }, h('label', { for: 'aiImg' }, 'Model ແກ້/ສ້າງຮູບ (ລົບວັດຖຸ, ແກ້ຕາມຄຳສັ່ງ, ສ້າງພາບ) · ຕ້ອງເປີດ billing'), im),
     h('div', { class: 'field' }, h('label', {}, 'ຂະໜາດຮູບທີ່ AI ສົ່ງກັບ'), sizeRow),
+    h('div', { class: 'btnrow' }, h('button', { class: 'btn', onclick: async () => {
+      save(); found.innerHTML = ''; found.append(h('p', { class: 'note' }, 'ກຳລັງຄົ້ນຫາ…'));
+      try {
+        const r = await listModels(); found.innerHTML = '';
+        const row = (lo, list, inp) => { found.append(h('p', { class: 'note' }, lo + (list.length ? '' : ': ບໍ່ພົບ'))); if (list.length) found.append(h('div', { class: 'chips', style: 'flex-wrap:wrap' }, list.slice(0, 8).map(n => h('button', { class: 'chip' + (inp.value === n ? ' on' : ''), onclick: e => { inp.value = n; save(); e.currentTarget.parentNode.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === e.currentTarget)); } }, n)))); };
+        row('Model ເບິ່ງຮູບ ທີ່ key ນີ້ໃຊ້ໄດ້ (ແຕະເພື່ອເລືອກ)', r.text, vm);
+        row('Model ແກ້/ສ້າງຮູບ ທີ່ key ນີ້ໃຊ້ໄດ້', r.image, im);
+        if (!r.image.length) found.append(h('p', { class: 'note', style: 'color:var(--warm)' }, 'key ນີ້ຍັງບໍ່ມີ model ແກ້/ສ້າງຮູບ. ສ່ວນຫຼາຍຕ້ອງເປີດ billing ໃນ Google AI Studio ກ່ອນ.'));
+      } catch (e) { found.innerHTML = ''; found.append(h('p', { class: 'note', style: 'color:var(--danger)' }, '✗ ' + e.message)); }
+    } }, 'ຄົ້ນຫາ model ທີ່ key ນີ້ໃຊ້ໄດ້')),
+    found,
     status,
     h('div', { class: 'btnrow' },
       h('button', { class: 'btn primary', onclick: async () => {

@@ -2115,6 +2115,7 @@ function apiError(res, model) {
   if (res.status === 0) return new AIError('ເຊື່ອມຕໍ່ Gemini ບໍ່ໄດ້. ກວດອິນເຕີເນັດແລ້ວລອງໃໝ່.', 'net');
   if (/api key not valid|API_KEY_INVALID|invalid api key/i.test(m)) return new AIError('API key ບໍ່ຖືກຕ້ອງ. ກວດ key ໃນການຕັ້ງຄ່າ AI.', 'key');
   if (res.status === 429) return new AIError('ໃຊ້ເກີນໂຄຕາຂອງ key ນີ້ແລ້ວ. ລໍຖ້າບຶດໜຶ່ງແລ້ວລອງໃໝ່.', 'quota');
+  if (RETRYABLE(res.status)) return new AIError('ຕອນນີ້ server ຂອງ Gemini ມີຄົນໃຊ້ຫຼາຍ (ບໍ່ແມ່ນບັນຫາຂອງ key). ລໍ 1–2 ນາທີ ແລ້ວລອງໃໝ່.', 'busy');
   if (res.status === 403 || /billing|free tier|not available|permission/i.test(m))
     return new AIError(`key ນີ້ໃຊ້ model "${model}" ບໍ່ໄດ້. Model ແກ້/ສ້າງຮູບ ຕ້ອງເປີດ billing (ຈ່າຍເງິນ) ໃນ Google AI Studio ກ່ອນ.`, 'perm');
   if (res.status === 404 || /not found|is not supported/i.test(m)) return new AIError(`ບໍ່ພົບ model "${model}". ກວດຊື່ model ໃນການຕັ້ງຄ່າ AI.`, 'model');
@@ -2135,8 +2136,33 @@ function collect(j) {
   walk(j && j.steps ? j.steps : j);
   return { text: texts.join('\n').trim(), images: imgs };
 }
-/* One call to Gemini. Uses the Interactions API; falls back to generateContent if that endpoint is refused. */
-async function geminiCall({ model, text, images = [], out = 'text', aspect, size, thinking, signal }) {
+/* Busy or overloaded models are retried, then the next model in line is tried. */
+const AI_BACKUP = { text: ['gemini-3.6-flash', 'gemini-3.5-flash-lite'], image: ['gemini-3.1-flash-image'] };
+const RETRYABLE = st_ => st_ === 500 || st_ === 502 || st_ === 503 || st_ === 504;
+const sleep = (ms, signal) => new Promise((res, rej) => { const t = setTimeout(res, ms); if (signal) signal.addEventListener('abort', () => { clearTimeout(t); rej(new AIError('ຍົກເລີກແລ້ວ', 'abort')); }, { once: true }); });
+async function geminiCall(opts) {
+  const { model, out = 'text', signal, onStatus } = opts;
+  const chain = [model, ...(AI_BACKUP[out === 'image' ? 'image' : 'text'] || [])].filter((m, i, a) => m && a.indexOf(m) === i);
+  let last = null;
+  for (let mi = 0; mi < chain.length; mi++) {
+    const m = chain[mi];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt || mi) onStatus && onStatus(mi ? `${chain[mi - 1]} ມີຄົນໃຊ້ຫຼາຍ, ກຳລັງລອງ ${m}…` : `Gemini ມີຄົນໃຊ້ຫຼາຍ, ກຳລັງລອງໃໝ່ (${attempt + 1}/3)…`);
+      const res = await geminiOnce(Object.assign({}, opts, { model: m }));
+      if (res.ok) { const r = collect(res.json); r.model = m;
+        if (out === 'image' && !r.images.length) throw new AIError('Gemini ບໍ່ໄດ້ສົ່ງຮູບກັບມາ' + (r.text ? ': ' + r.text.slice(0, 200) : '. ລອງປ່ຽນຄຳສັ່ງໃຫ້ຊັດເຈນຂຶ້ນ.'), 'noimage');
+        return r; }
+      last = { res, m };
+      if (RETRYABLE(res.status) || res.status === 0) { if (attempt < 2) await sleep(1500 * (attempt + 1), signal); continue; }
+      if (res.status === 429 && attempt === 0) { await sleep(4000, signal); continue; }
+      if (res.status === 404 && mi < chain.length - 1) break; // model name not available → next model
+      throw apiError(res, m);
+    }
+  }
+  throw apiError(last.res, last.m);
+}
+/* One request. Uses the Interactions API; falls back to generateContent if that endpoint is refused. */
+async function geminiOnce({ model, text, images = [], out = 'text', aspect, size, thinking, signal }) {
   const c = AIcfg(); if (!c.key) throw new AIError('ຍັງບໍ່ໄດ້ໃສ່ Gemini API key', 'nokey');
   const body = { model, input: [{ type: 'text', text }, ...images.map(im => ({ type: 'image', mime_type: im.mime, data: im.b64 }))] };
   if (out === 'image') body.response_format = Object.assign({ type: 'image', mime_type: 'image/png' }, aspect ? { aspect_ratio: aspect } : {}, size ? { image_size: size } : {});
@@ -2149,10 +2175,7 @@ async function geminiCall({ model, text, images = [], out = 'text', aspect, size
     if (out === 'json') gc.responseMimeType = 'application/json';
     res = await fetchJSON(`${GEM_API}/models/${encodeURIComponent(model)}:generateContent`, { contents: [{ role: 'user', parts }], generationConfig: gc }, c.key, signal);
   }
-  if (!res.ok) throw apiError(res, model);
-  const r = collect(res.json);
-  if (out === 'image' && !r.images.length) throw new AIError('Gemini ບໍ່ໄດ້ສົ່ງຮູບກັບມາ' + (r.text ? ': ' + r.text.slice(0, 200) : '. ລອງປ່ຽນຄຳສັ່ງໃຫ້ຊັດເຈນຂຶ້ນ.'), 'noimage');
-  return r;
+  return res;
 }
 function parseJSON(t) {
   t = (t || '').replace(/```(?:json)?/gi, '').trim();
@@ -2318,7 +2341,7 @@ async function aiPatch(instruction) {
 ${task}
 Only change pixels inside the red area. Keep everything else in image 1 exactly the same: same framing, crop, perspective, colors and aspect ratio. Do not add text, borders or any red tint. Return only the full edited photo.`;
     b.set('ກຳລັງສົ່ງໃຫ້ Gemini ແກ້ຮູບ… (ປະມານ 10–40 ວິນາທີ)');
-    const r = await geminiCall({ model: c.imgModel, text, out: 'image', aspect: ratioName(sw, sh), size: c.size, signal: b.signal,
+    const r = await geminiCall({ model: c.imgModel, text, out: 'image', aspect: ratioName(sw, sh), size: c.size, signal: b.signal, onStatus: b.set,
       images: [{ mime: 'image/jpeg', b64: cvB64(send, 'image/jpeg', 0.92) }, { mime: 'image/jpeg', b64: cvB64(marked, 'image/jpeg', 0.9) }] });
     b.set('ກຳລັງປະສົມຜົນເຂົ້າກັບຮູບຕົ້ນສະບັບ…');
     const res = await blobCanvas(b64Blob(r.images[r.images.length - 1].b64, r.images[r.images.length - 1].mime));
@@ -2395,7 +2418,7 @@ async function aiWhole(instruction) {
     b.set('ກຳລັງສົ່ງໃຫ້ Gemini ແກ້ຮູບ… (ປະມານ 10–40 ວິນາທີ)');
     const text = `Edit this photo according to the instruction: "${instruction}".
 The instruction may be written in Lao; interpret it. Keep the same composition, framing and aspect ratio unless the instruction asks otherwise. Keep it photorealistic. Return only the edited photo.`;
-    const r = await geminiCall({ model: c.imgModel, text, out: 'image', aspect: ratioName(cv.width, cv.height), size: c.size, signal: b.signal, images: [{ mime: 'image/jpeg', b64: cvB64(cv, 'image/jpeg', 0.92) }] });
+    const r = await geminiCall({ model: c.imgModel, text, out: 'image', aspect: ratioName(cv.width, cv.height), size: c.size, signal: b.signal, onStatus: b.set, images: [{ mime: 'image/jpeg', b64: cvB64(cv, 'image/jpeg', 0.92) }] });
     const im = r.images[r.images.length - 1];
     b.set('ກຳລັງບັນທຶກ…');
     await addResultPhoto(b64Blob(im.b64, im.mime), (meta.name || 'ຮູບ') + ' · AI');
@@ -2420,7 +2443,7 @@ Sliders and ranges (0 = no change): exposure (stops, -2..2), contrast, highlight
 "vignette.amount" (-100 darker edges..100), "grain.amount" (0..100), color grading "grade.sh.h"/"grade.mid.h"/"grade.hi.h" (hue 0-360) with "grade.sh.s"/"grade.mid.s"/"grade.hi.s" (strength 0..100),
 per-color "hsl.h.N"/"hsl.s.N"/"hsl.l.N" (-100..100) where N: 0 red, 1 orange, 2 yellow, 3 green, 4 aqua, 5 blue, 6 purple, 7 magenta, and "bw" (true for black & white).
 Only include sliders you change. Output only JSON: {"settings": {"exposure": 0.3, ...}, "note": "one short sentence in Lao explaining what you changed"}`;
-    const r = await geminiCall({ model: c.visModel, text, signal: b.signal, out: 'json', images: [{ mime: 'image/jpeg', b64: cvB64(scaledCanvas(st.img, 1024), 'image/jpeg', 0.88) }] });
+    const r = await geminiCall({ model: c.visModel, text, signal: b.signal, onStatus: b.set, out: 'json', images: [{ mime: 'image/jpeg', b64: cvB64(scaledCanvas(st.img, 1024), 'image/jpeg', 0.88) }] });
     const j = parseJSON(r.text), s = (j && (j.settings || j)) || {}, flat = {};
     for (const k in s) {
       if (!(k in AI_KEYS)) continue;
@@ -2512,7 +2535,7 @@ function genSheet() {
     LS.set('genPrompt', prompt); LS.set('genOpts', o);
     const b = busy('Gemini ກຳລັງສ້າງພາບ… (ປະມານ 10–40 ວິນາທີ)');
     try {
-      const r = await geminiCall({ model: AIcfg().imgModel, text: `Create a high-quality image: ${prompt}\n(The description may be written in Lao; interpret it.)`, out: 'image', aspect: o.ar, size: o.size, signal: b.signal });
+      const r = await geminiCall({ model: AIcfg().imgModel, text: `Create a high-quality image: ${prompt}\n(The description may be written in Lao; interpret it.)`, out: 'image', aspect: o.ar, size: o.size, signal: b.signal, onStatus: b.set });
       const im = r.images[r.images.length - 1];
       b.set('ກຳລັງບັນທຶກ…');
       await addResultPhoto(b64Blob(im.b64, im.mime), 'AI: ' + prompt.slice(0, 30));
@@ -2527,7 +2550,7 @@ function genSheet() {
 function aiSettingsSheet(reason) {
   const root = $('#sheetRoot'); root.innerHTML = '';
   const c = AIcfg(), sheet = h('div', { class: 'sheet' });
-  const key = h('input', { id: 'aiKey', type: 'password', value: c.key, placeholder: 'AIza…', autocomplete: 'off', spellcheck: 'false' });
+  const key = h('input', { id: 'aiKey', type: 'password', value: c.key, placeholder: 'ວາງ API key ທີ່ນີ້', autocomplete: 'off', spellcheck: 'false' });
   const im = h('input', { id: 'aiImg', value: c.imgModel, spellcheck: 'false' }), vm = h('input', { id: 'aiVis', value: c.visModel, spellcheck: 'false' });
   const status = h('p', { class: 'note' });
   const save = () => { LS.set('gemini', { key: key.value.trim(), imgModel: im.value.trim() || AI_DEF.imgModel, visModel: vm.value.trim() || AI_DEF.visModel, size: c.size }); };
@@ -2545,7 +2568,7 @@ function aiSettingsSheet(reason) {
     h('div', { class: 'btnrow' },
       h('button', { class: 'btn primary', onclick: async () => {
         save(); status.textContent = 'ກຳລັງທົດສອບ…';
-        try { const r = await geminiCall({ model: AIcfg().visModel, text: 'Reply with the single word OK.' }); status.textContent = '✓ ເຊື່ອມຕໍ່ໄດ້ (' + (r.text || 'OK').slice(0, 20) + ')'; status.style.color = 'var(--accent)'; }
+        try { const r = await geminiCall({ model: AIcfg().visModel, text: 'Reply with the single word OK.', onStatus: t => status.textContent = t }); status.textContent = '✓ ເຊື່ອມຕໍ່ໄດ້ · model: ' + r.model; status.style.color = 'var(--accent)'; }
         catch (e) { status.textContent = '✗ ' + e.message; status.style.color = 'var(--danger)'; }
       } }, 'ບັນທຶກ ແລະ ທົດສອບ'),
       h('button', { class: 'btn ghost', onclick: () => { save(); root.innerHTML = ''; if (st.cur && st.tab === 'ai') renderPanel(); } }, 'ປິດ'))].filter(Boolean));

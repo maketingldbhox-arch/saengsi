@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="lo">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b0b0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ແສງສີ ກ້ອງ">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>ແສງສີ ກ້ອງ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0b0c;--fg:#f2efe9;--mut:#8d8a84;--acc:#f2b134;--pan:#151517;--chip:#232327;--line:#2a2a2e}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:'Noto Sans Lao',system-ui,-apple-system,sans-serif;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.hide{display:none!important}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+#top{flex:none;height:48px;display:flex;align-items:center;justify-content:space-around;padding:0 6px}
+.ic{min-width:44px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:13px;font-weight:500}
+.ic svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ic.on{color:var(--acc)}
+#stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#frame{position:relative;overflow:hidden;background:#000}
+#view{width:100%;height:100%;display:block}
+.gl{position:absolute;background:rgba(255,255,255,.32);pointer-events:none}
+#reticle{position:absolute;width:70px;height:70px;margin:-35px 0 0 -35px;border:1.5px solid var(--acc);border-radius:50%;pointer-events:none;opacity:0;transform:scale(1.35);transition:opacity .5s,transform .25s}
+#reticle.show{opacity:1;transform:scale(1)}
+#hist{position:absolute;left:8px;top:8px;width:64px;height:32px;pointer-events:none;border-radius:4px;background:rgba(0,0,0,.28)}
+#badge{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-size:11.5px;padding:3px 10px;border-radius:12px;background:rgba(0,0,0,.45);white-space:nowrap;pointer-events:none}
+#count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:96px;font-weight:600;color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.6);pointer-events:none}
+#blink{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .18s}
+#blink.on{opacity:1;transition:none}
+#flashOv{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:80}
+#flashOv.on{opacity:1}
+#msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center;background:var(--bg);font-size:14.5px;line-height:1.7}
+#panel{flex:none;background:var(--pan);border-radius:18px 18px 0 0;padding-top:6px}
+#tabs{display:flex;justify-content:center;gap:4px;padding:2px 12px 4px}
+#tabs button{font-size:13px;padding:5px 13px;border-radius:14px;color:var(--mut)}
+#tabs button.on{background:var(--chip);color:var(--fg)}
+#pbody{height:132px;overflow-y:auto;overflow-x:hidden}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 14px 6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:7px 14px;border-radius:18px;background:var(--chip);font-size:13px;border:1.5px solid transparent;white-space:nowrap}
+.chip.on{border-color:var(--acc);color:var(--acc)}
+.chip.lk{padding:4px 4px 3px;border-radius:13px;display:flex;flex-direction:column;align-items:center;gap:2px;width:70px;font-size:10.5px}
+.chip.lk img{width:60px;height:56px;border-radius:9px;object-fit:cover;background:#333;display:block}
+.chip.lk span{max-width:62px;overflow:hidden;text-overflow:ellipsis}
+.chip.ln{display:flex;flex-direction:column;align-items:center;line-height:1.15;padding:5px 15px}
+.chip.ln b{font-size:15px}.chip.ln small{font-size:10px;color:var(--mut)}
+.sl{padding:0 18px 4px}
+.slh{display:flex;justify-content:space-between;font-size:12px;color:var(--mut)}
+.slh b{color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0;touch-action:pan-y}
+input[type=range]::-webkit-slider-runnable-track{height:3px;background:#3b3b40;border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--fg);margin-top:-9.5px;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+input[type=range]::-moz-range-track{height:3px;background:#3b3b40}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--fg);border:0}
+.hint{font-size:11px;color:var(--mut);padding:0 16px 6px;text-align:center}
+.note{font-size:12.5px;color:var(--mut);padding:10px 18px;line-height:1.65}
+.mini{display:block;margin:2px auto 6px;font-size:12px;color:var(--mut);padding:4px 12px;border-radius:12px;background:var(--chip)}
+#modes{flex:none;display:flex;justify-content:center;gap:4px;padding:6px 0 0;background:var(--pan)}
+#modes button{font-size:12.5px;padding:5px 12px;border-radius:14px;color:var(--mut)}
+#modes button.on{color:var(--acc);font-weight:600}
+#bottom{flex:none;height:calc(100px + env(safe-area-inset-bottom));padding:0 28px env(safe-area-inset-bottom);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background:var(--pan)}
+#bGal{width:52px;height:52px;border-radius:10px;overflow:hidden;background:var(--chip);justify-self:start;border:1.5px solid #333}
+#bGal img{width:100%;height:100%;object-fit:cover;display:block}
+#shutter{width:76px;height:76px;border-radius:50%;border:4px solid var(--fg);display:flex;align-items:center;justify-content:center}
+#shutter span{width:60px;height:60px;border-radius:50%;background:var(--fg);transition:transform .1s,background .2s}
+#shutter:active span{transform:scale(.88)}
+#shutter.busy span{background:var(--acc);transform:scale(.8)}
+#bFlip{justify-self:end;width:52px;height:52px;border-radius:50%;background:var(--chip);display:flex;align-items:center;justify-content:center}
+#bFlip svg{width:24px;height:24px;stroke:var(--fg);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sheet{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+.sheet>header{flex:none;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;border-bottom:1px solid var(--line)}
+.sheet h2{font-size:16px;margin:0;font-weight:600}
+.hb{padding:8px 12px;border-radius:10px;font-size:14px;min-width:64px;text-align:left}
+.hb.r{text-align:right}.hb.danger{color:#ff6b5e}
+.cnt{min-width:64px;text-align:right;color:var(--mut);font-size:13px;padding-right:10px}
+#galGrid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px 2px calc(2px + env(safe-area-inset-bottom));align-content:start}
+#galGrid button{aspect-ratio:1;overflow:hidden;background:#1b1b1d}
+#galGrid img{width:100%;height:100%;object-fit:cover;display:block}
+.empty{grid-column:1/-1;text-align:center;color:var(--mut);padding:70px 20px;font-size:14px;line-height:1.7}
+#vStage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px}
+#vCanvas{display:block;background:#000}
+#vCtl{flex:none;max-height:36vh;overflow-y:auto;background:var(--pan);padding-top:8px;border-radius:18px 18px 0 0}
+#vBar{flex:none;display:flex;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:var(--pan)}
+.btn{flex:1;height:46px;border-radius:12px;background:var(--chip);font-size:15px;font-weight:500}
+.btn.pri{flex:2;background:var(--acc);color:#1a1405;font-weight:600}
+.btn:disabled{opacity:.6}
+.set{flex:1;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);font-size:14.5px}
+.row small{display:block;color:var(--mut);font-size:12px;margin-top:2px}
+.row .chips{padding:0}
+.sw{width:50px;height:30px;border-radius:15px;background:#3b3b40;position:relative;flex:none;transition:background .2s}
+.sw::after{content:'';position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw.on{background:var(--acc)}.sw.on::after{transform:translateX(20px)}
+.secT{font-size:12px;color:var(--mut);padding:18px 18px 6px;letter-spacing:.3px}
+#toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(10px);background:rgba(34,34,37,.96);padding:9px 16px;border-radius:20px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:90;max-width:88vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#vid{position:absolute;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <button class="ic" id="bFlash" aria-label="ແຟລຊ"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></button>
+    <button class="ic" id="bGrid" aria-label="ເສັ້ນຕາຕະລາງ"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg></button>
+    <button class="ic" id="bTimer" aria-label="ໂມງຈັບເວລາ"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg><span id="tLbl"></span></button>
+    <button class="ic" id="bAspect" aria-label="ອັດຕາສ່ວນ">3:4</button>
+    <button class="ic" id="bSettings" aria-label="ຕັ້ງຄ່າ"><svg viewBox="0 0 24 24"><path d="M4 6h9M19 6h1M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="16" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/></svg></button>
+  </header>
+  <main id="stage">
+    <div id="frame">
+      <canvas id="view"></canvas>
+      <div id="grid" class="hide"><div class="gl" style="left:33.33%;top:0;bottom:0;width:1px"></div><div class="gl" style="left:66.66%;top:0;bottom:0;width:1px"></div><div class="gl" style="top:33.33%;left:0;right:0;height:1px"></div><div class="gl" style="top:66.66%;left:0;right:0;height:1px"></div></div>
+      <div id="reticle"></div>
+      <canvas id="hist" width="64" height="32"></canvas>
+      <div id="badge"></div>
+      <div id="count"></div>
+      <div id="blink"></div>
+    </div>
+    <div id="msg" class="hide"><div id="msgT"></div><button class="btn pri" id="msgB" style="flex:none;padding:0 26px">ເປີດກ້ອງ</button></div>
+  </main>
+  <section id="panel">
+    <nav id="tabs"></nav>
+    <div id="pbody"></div>
+  </section>
+  <nav id="modes">
+    <button data-m="auto">ອັດຕະໂນມັດ</button>
+    <button data-m="a">A · ຮູຮັບແສງ</button>
+    <button data-m="m">M · ແມນນວນ</button>
+  </nav>
+  <footer id="bottom">
+    <button id="bGal" aria-label="ຄັງຮູບ"><img id="galThumb" alt="" class="hide"></button>
+    <button id="shutter" aria-label="ຖ່າຍຮູບ"><span></span></button>
+    <button id="bFlip" aria-label="ສະຫຼັບກ້ອງ"><svg viewBox="0 0 24 24"><path d="M4 9h13"/><path d="m14 6 3 3-3 3"/><path d="M20 15H7"/><path d="m10 12-3 3 3 3"/></svg></button>
+  </footer>
+</div>
+
+<div id="gal" class="sheet hide">
+  <header><button class="hb" id="galClose">‹ ກັບ</button><h2>ຄັງຮູບ</h2><span class="cnt" id="galCount"></span></header>
+  <div id="galGrid"></div>
+</div>
+
+<div id="viewer" class="sheet hide">
+  <header><button class="hb" id="vClose">‹ ກັບ</button><h2 id="vDate"></h2><button class="hb r danger" id="vDel">ລຶບ</button></header>
+  <div id="vStage"><canvas id="vCanvas"></canvas></div>
+  <div id="vCtl"></div>
+  <div id="vBar"><button class="btn" id="vReset">ຄືນຄ່າ</button><button class="btn pri" id="vSave">ບັນທຶກ / ແບ່ງປັນ</button></div>
+</div>
+
+<div id="settings" class="sheet hide">
+  <header><button class="hb" id="setClose">‹ ກັບ</button><h2>ຕັ້ງຄ່າ</h2><span class="cnt"></span></header>
+  <div class="set" id="setBody"></div>
+</div>
+
+<div id="flashOv"></div>
+<div id="toast"></div>
+<video id="vid" playsinline muted autoplay></video>
+
+<script>
+'use strict';
+/* ================= ຂໍ້ມູນພື້ນຖານ ================= */
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const STOPS = [0.95, 1.2, 1.4, 2, 2.8, 4, 5.6, 8, 11, 16];
+const ASPECTS = { '3:4': 3/4, '4:5': 4/5, '1:1': 1, '9:16': 9/16 };
+const ASPECT_ORDER = ['3:4', '4:5', '1:1', '9:16'];
+
+// ເລນຈຳລອງ (zoom = ຕັດພາບທຽບກັບເລນຫຼັກ ~26mm)
+const LENSES = [
+  { id:'28', mm:28, sub:'ກວ້າງ',   zoom:1.08, bm:0.55, fr:0.30, vig:0.16, glow:0    },
+  { id:'35', mm:35, sub:'ຖະໜົນ',   zoom:1.35, bm:0.75, fr:0.26, vig:0.22, glow:0    },
+  { id:'50', mm:50, sub:'ຄລາສສິກ', zoom:1.90, bm:1.00, fr:0.22, vig:0.34, glow:0.45 },
+  { id:'75', mm:75, sub:'ພໍເທຣດ',  zoom:2.60, bm:1.30, fr:0.19, vig:0.20, glow:0.10 },
+];
+const LENSMAP = Object.fromEntries(LENSES.map(l => [l.id, l]));
+
+// ໂທນສີ (ອອກແບບເອງ) — mat ຂຽນເປັນແຖວ (row-major)
+const LOOKS_RAW = [
+  { id:'nat',  name:'ທຳມະຊາດ',   con:1.04, sat:1.03, curve:0.15 },
+  { id:'cls',  name:'ຄລາສສິກ',   mat:[1.04,0,-0.02, 0,1,0, -0.02,0,0.96], sat:0.88, con:1.05, curve:0.3, fade:0.03, lift:[0.01,0,-0.01], gain:[0.03,0.015,-0.02], vig:0.25 },
+  { id:'viv',  name:'ສົດໃສ',     sat:1.3, con:1.12, curve:0.35, vig:0.15 },
+  { id:'wf',   name:'ຟິມອົບອຸ່ນ', mat:[1.06,0.02,-0.04, 0,1,0, -0.03,0.04,0.92], sat:0.92, con:0.98, curve:0.4, fade:0.06, lift:[-0.02,0.01,0.03], gain:[0.05,0.02,-0.04], grain:0.05, vig:0.3 },
+  { id:'sld',  name:'ສະໄລ້',     mat:[1.02,-0.02,0, -0.02,1.02,0, 0,-0.03,1.06], sat:1.22, con:1.2, curve:0.45, lift:[0,0,0.02], gain:[0.02,0.01,-0.01], vig:0.35, grain:0.02 },
+  { id:'pst',  name:'ສີຈາງ',     sat:0.75, con:0.86, curve:0.1, fade:0.12, lift:[0.02,0.01,0.03], gain:[0.02,0.02,0] },
+  { id:'cool', name:'ເງິນເຢັນ',   mat:[0.96,0.02,0.02, 0,0.98,0.02, 0,0.02,1.06], sat:0.8, con:1.1, curve:0.3, lift:[-0.01,0,0.03], gain:[0,0.01,0.02], vig:0.2 },
+  { id:'cine', name:'ຮູບເງົາ',    sat:1.05, con:1.08, curve:0.3, lift:[-0.04,0.01,0.05], gain:[0.06,0.02,-0.05], fade:0.03, vig:0.35, grain:0.03 },
+  { id:'bw',   name:'ຂາວດຳ',     bw:1, con:1.08, curve:0.3, vig:0.2, grain:0.03 },
+  { id:'bwh',  name:'ຂາວດຳ ເຂັ້ມ', bw:1, bwW:[0.45,0.5,0.05], con:1.35, curve:0.5, vig:0.4, grain:0.06 },
+  { id:'sep',  name:'ຊີເປຍ',     bw:1, bwW:[0.3,0.59,0.11], tone:[1.08,0.99,0.86], con:1.05, curve:0.3, fade:0.05, vig:0.3, grain:0.05 },
+];
+function normLook(L) {
+  const m = L.mat || [1,0,0, 0,1,0, 0,0,1];
+  const col = [m[0],m[3],m[6], m[1],m[4],m[7], m[2],m[5],m[8]]; // -> column-major ສຳລັບ GLSL
+  return { id:L.id, name:L.name, mat:new Float32Array(col), sat:L.sat ?? 1, con:L.con ?? 1, curve:L.curve ?? 0, fade:L.fade ?? 0,
+    lift:L.lift || [0,0,0], gain:L.gain || [0,0,0], bw:L.bw || 0, bwW:L.bwW || [0.2126,0.7152,0.0722], tone:L.tone || [1,1,1],
+    grain:L.grain || 0, vig:L.vig || 0 };
+}
+const LOOKS = LOOKS_RAW.map(normLook);
+const LOOKMAP = Object.fromEntries(LOOKS.map(l => [l.id, l]));
+
+/* ================= Shader ================= */
+const VS = `attribute vec2 p;varying vec2 v_uv;void main(){v_uv=p*0.5+0.5;gl_Position=vec4(p,0.0,1.0);}`;
+const FS = `precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
+uniform vec2 u_outSize, u_scale, u_focus;
+uniform float u_mirror,u_exp,u_temp,u_tint,u_sat,u_con,u_curve,u_fade,u_bw,u_grain,u_vig,u_glow,u_intensity,u_seed,u_focusR,u_blur;
+uniform mat3 u_mat;
+uniform vec3 u_lift,u_gain,u_bwW,u_tone;
+float hash(vec2 p){p=mod(p,512.0);p=fract(p*vec2(0.1031,0.1030));p+=dot(p,p.yx+33.33);return fract((p.x+p.y)*p.x);}
+float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y);}
+float luma(vec3 c){return dot(c,vec3(0.2126,0.7152,0.0722));}
+vec3 shoulder(vec3 x){vec3 t=max(x-0.8,0.0);return min(x,vec3(0.8))+0.2*(1.0-exp(-t/0.2));}
+void main(){
+  vec2 uv=v_uv;
+  vec2 s=0.5+(uv-0.5)*u_scale;
+  if(u_mirror>0.5) s.x=1.0-s.x;
+  float aspect=u_outSize.x/u_outSize.y;
+  vec3 col;
+  float coc=0.0;
+  if(u_blur>0.0){
+    float d=length((uv-u_focus)*vec2(aspect,1.0));
+    coc=smoothstep(u_focusR,u_focusR+0.3,d)*u_blur;
+  }
+  if(coc>0.0008){
+    vec3 acc=vec3(0.0);float ws=0.0;
+    float rot=hash(gl_FragCoord.xy)*6.2832;
+    vec2 rad=vec2(coc/aspect,coc)*u_scale;
+    for(int i=0;i<32;i++){
+      float fi=float(i);
+      float r=sqrt((fi+0.5)/32.0);
+      float th=fi*2.39996+rot;
+      vec3 c=texture2D(u_tex,s+vec2(cos(th),sin(th))*r*rad).rgb;
+      float w=1.0+8.0*pow(luma(c),6.0);
+      acc+=c*w;ws+=w;
+    }
+    col=acc/ws;
+  } else col=texture2D(u_tex,s).rgb;
+  if(u_glow>0.0){
+    vec2 gr=vec2(0.007/aspect,0.007)*u_scale;vec3 g=vec3(0.0);
+    for(int i=0;i<8;i++){float th=float(i)*0.785398;g+=texture2D(u_tex,s+vec2(cos(th),sin(th))*gr).rgb;}
+    g/=8.0;
+    col+=max(g-0.55,0.0)*2.2*u_glow*vec3(1.0,0.86,0.72)*0.5;
+  }
+  vec3 lin=pow(max(col,0.0),vec3(2.2));
+  lin*=exp2(u_exp);
+  lin*=vec3(1.0+0.10*u_temp,1.0-0.06*u_tint,1.0-0.10*u_temp);
+  vec3 base=pow(shoulder(lin),vec3(1.0/2.2));
+  vec3 c=clamp(u_mat*base,0.0,1.0);
+  float l=luma(c);
+  c=mix(vec3(l),c,u_sat);
+  c=mix(c,vec3(dot(c,u_bwW)),u_bw);
+  c=clamp((c-0.5)*u_con+0.5,0.0,1.0);
+  c=mix(c,c*c*(3.0-2.0*c),u_curve);
+  l=luma(c);
+  c+=u_lift*(1.0-l)*(1.0-l)+u_gain*l*l;
+  c*=u_tone;
+  c=mix(vec3(u_fade),vec3(1.0),clamp(c,0.0,1.0));
+  c=mix(base,c,u_intensity);
+  vec2 vd=(uv-0.5)*vec2(aspect,1.0);
+  float vv=length(vd)/length(vec2(aspect,1.0)*0.5);
+  c*=1.0-u_vig*smoothstep(0.45,1.05,vv);
+  if(u_grain>0.0){
+    float gs=max(u_outSize.y/1400.0,1.0);
+    float n=vnoise(gl_FragCoord.xy/gs+u_seed*13.1)-0.5;
+    c+=n*u_grain*2.0*(0.7-0.4*luma(c));
+  }
+  gl_FragColor=vec4(clamp(c,0.0,1.0),1.0);
+}`;
+
+class Renderer {
+  constructor(cv, preserve) {
+    this.cv = cv;
+    const gl = cv.getContext('webgl', { preserveDrawingBuffer: !!preserve, antialias: false, alpha: false, premultipliedAlpha: false });
+    if (!gl) throw new Error('WebGL');
+    this.gl = gl;
+    const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o);
+      if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const pr = gl.createProgram();
+    gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr);
+    if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+    gl.useProgram(pr);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    this.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    this.u = {};
+    const n = gl.getProgramParameter(pr, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) { const nm = gl.getActiveUniform(pr, i).name; this.u[nm] = gl.getUniformLocation(pr, nm); }
+    this.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    this.sw = 1; this.sh = 1;
+  }
+  upload(src, w, h) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, src);
+    this.sw = w; this.sh = h;
+  }
+  draw(P, w, h) {
+    const gl = this.gl;
+    if (this.cv.width !== w) this.cv.width = w;
+    if (this.cv.height !== h) this.cv.height = h;
+    gl.viewport(0, 0, w, h);
+    const U = buildUniforms(P, this.sw, this.sh, w, h);
+    for (const k in U) {
+      const l = this.u[k]; if (!l) continue; const v = U[k];
+      if (typeof v === 'number') gl.uniform1f(l, v);
+      else if (v.length === 2) gl.uniform2fv(l, v);
+      else if (v.length === 3) gl.uniform3fv(l, v);
+      else if (v.length === 9) gl.uniformMatrix3fv(l, false, v);
+    }
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+}
+
+function blurAmount(P) {
+  if (!P.blur) return 0;
+  const lens = LENSMAP[P.lens] || LENSES[0];
+  return Math.max(0, 0.035 * (1 / P.fstop - 1 / 11)) * lens.bm;
+}
+function buildUniforms(P, sw, sh, w, h) {
+  const L = LOOKMAP[P.look] || LOOKS[0], lens = LENSMAP[P.lens] || LENSES[0];
+  const sa = sw / sh, da = w / h;
+  let sx = 1, sy = 1;
+  if (sa > da) sx = da / sa; else sy = sa / da;
+  sx /= P.zoom; sy /= P.zoom;
+  const it = P.intensity;
+  return {
+    u_outSize:[w, h], u_scale:[sx, sy], u_mirror:P.mirror ? 1 : 0,
+    u_exp:P.ev, u_temp:P.temp, u_tint:P.tint,
+    u_mat:L.mat, u_sat:L.sat, u_con:L.con, u_curve:L.curve, u_fade:L.fade, u_lift:L.lift, u_gain:L.gain,
+    u_bw:L.bw, u_bwW:L.bwW, u_tone:L.tone,
+    u_grain:L.grain * it, u_vig:L.vig * it + (P.lensFx ? lens.vig : 0), u_glow:P.lensFx ? lens.glow : 0,
+    u_intensity:it, u_seed:P.seed || 0,
+    u_focus:P.focus, u_focusR:lens.fr * P.focusScale, u_blur:blurAmount(P),
+  };
+}
+
+/* ================= ສະຖານະ ================= */
+const DEF = { mode:'auto', tab:'look', look:'cls', intensity:1, lens:'35', fstop:1.4, focusScale:1, ev:0, temp:0, tint:0,
+  aspect:'3:4', grid:false, timer:0, flash:false, facing:'environment', mirror:true, hires:true, autosave:false, format:'jpeg', hist:true };
+let S = { ...DEF };
+try { Object.assign(S, JSON.parse(localStorage.getItem('sscam.v1') || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem('sscam.v1', JSON.stringify(S)); } catch (e) {} };
+let focus = [0.5, 0.5];
+const MODE_TABS = { auto:['look'], a:['look','lens','light'], m:['look','lens','light','pro'] };
+const TAB_NAMES = { look:'ໂທນສີ', lens:'ເລນ', light:'ແສງ & ສີ', pro:'ຮາດແວ' };
+
+function eff() {
+  const auto = S.mode === 'auto', m = S.mode === 'm';
+  const lens = LENSMAP[S.lens] || LENSES[1];
+  return { look:S.look, intensity:S.intensity, ev:auto ? 0 : S.ev, temp:m ? S.temp : 0, tint:m ? S.tint : 0,
+    lens:auto ? '28' : lens.id, zoom:auto ? 1 : lens.zoom, blur:!auto, fstop:S.fstop, focus:focus.slice(),
+    focusScale:S.focusScale, mirror:S.facing === 'user' && S.mirror, lensFx:!auto, seed:0, aspect:S.aspect };
+}
+
+/* ================= DOM ================= */
+const vid = $('#vid'), viewCv = $('#view'), frame = $('#frame'), workCv = document.createElement('canvas');
+let live, work, viewR;
+try {
+  live = new Renderer(viewCv, false);
+  work = new Renderer(workCv, true);
+  viewR = new Renderer($('#vCanvas'), true);
+} catch (e) {
+  document.body.innerHTML = '<p style="padding:40px;text-align:center;line-height:1.7">ອຸປະກອນນີ້ບໍ່ຮອງຮັບ WebGL — ບໍ່ສາມາດໃຊ້ແອັບໄດ້<br><small>' + e.message + '</small></p>';
+  throw e;
+}
+const MAXTEX = Math.min(work.maxTex, 4096);
+
+function toast(t, ms = 2200) {
+  const el = $('#toast'); el.textContent = t; el.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), ms);
+}
+function showMsg(t, btn = 'ລອງໃໝ່') {
+  const m = $('#msg');
+  if (!t) { m.classList.add('hide'); return; }
+  $('#msgT').textContent = t; $('#msgB').textContent = btn; m.classList.remove('hide');
+}
+
+/* ================= ກ້ອງ ================= */
+let stream = null, track = null, caps = {}, imgCap = null;
+async function startCam() {
+  stopCam();
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showMsg('ກະລຸນາເປີດແອັບຜ່ານ HTTPS (ເຊັ່ນ GitHub Pages) — ບຣາວເຊີບໍ່ອະນຸຍາດໃຫ້ໃຊ້ກ້ອງໃນໜ້າທີ່ບໍ່ປອດໄພ'); return;
+  }
+  const want = S.hires ? { width:{ ideal:4032 }, height:{ ideal:3024 } } : { width:{ ideal:1920 }, height:{ ideal:1440 } };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:{ ideal:S.facing }, ...want } });
+  } catch (e) {
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:S.facing } }); }
+    catch (e2) {
+      showMsg(e2.name === 'NotAllowedError'
+        ? 'ແອັບຕ້ອງການສິດໃຊ້ກ້ອງ — ກົດປຸ່ມລຸ່ມນີ້ ແລ້ວເລືອກ "ອະນຸຍາດ". ຖ້າເຄີຍປະຕິເສດ ໃຫ້ໄປເປີດສິດກ້ອງໃນການຕັ້ງຄ່າບຣາວເຊີ'
+        : 'ບໍ່ສາມາດເປີດກ້ອງໄດ້: ' + (e2.message || e2.name), 'ເປີດກ້ອງ');
+      return;
+    }
+  }
+  showMsg(null);
+  track = stream.getVideoTracks()[0];
+  try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) { caps = {}; }
+  try { imgCap = ('ImageCapture' in window) ? new ImageCapture(track) : null; } catch (e) { imgCap = null; }
+  vid.srcObject = stream;
+  vid.addEventListener('loadeddata', () => setTimeout(refreshLookThumbs, 150), { once:true });
+  try { await vid.play(); } catch (e) {}
+  track.addEventListener('ended', () => { if (!document.hidden) startCam(); });
+  updateTop();
+  if (S.tab === 'pro') renderPanel();
+}
+function stopCam() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; track = null; caps = {}; imgCap = null;
+}
+function hwApply(o) {
+  if (!track) return;
+  track.applyConstraints({ advanced:[o] }).catch(e => toast('ຕັ້ງຄ່າຮາດແວບໍ່ໄດ້ (' + (e.name || 'error') + ')'));
+}
+
+/* ================= Layout & loop ================= */
+function layout() {
+  const st = $('#stage').getBoundingClientRect();
+  const a = ASPECTS[S.aspect];
+  let w = st.width, h = w / a;
+  if (h > st.height) { h = st.height; w = h * a; }
+  frame.style.width = w + 'px'; frame.style.height = h + 'px';
+  const d = Math.min(window.devicePixelRatio || 1, 1.5);
+  viewCv.width = Math.max(2, Math.round(w * d)); viewCv.height = Math.max(2, Math.round(h * d));
+}
+new ResizeObserver(layout).observe($('#stage'));
+
+let sheetOpen = false, fc = 0;
+const hc = document.createElement('canvas'); hc.width = 48; hc.height = 64;
+const hctx = hc.getContext('2d', { willReadFrequently:true }), hx = $('#hist').getContext('2d');
+function drawHist() {
+  hctx.drawImage(viewCv, 0, 0, 48, 64);
+  const d = hctx.getImageData(0, 0, 48, 64).data, bins = new Array(32).fill(0);
+  for (let i = 0; i < d.length; i += 4) bins[((d[i]*0.2126 + d[i+1]*0.7152 + d[i+2]*0.0722) | 0) >> 3]++;
+  const mx = Math.max(...bins) || 1;
+  hx.clearRect(0, 0, 64, 32); hx.fillStyle = 'rgba(242,239,233,.8)';
+  bins.forEach((v, i) => { const bh = Math.max(1, Math.sqrt(v / mx) * 28); hx.fillRect(i * 2, 31 - bh, 2, bh); });
+}
+function loop() {
+  requestAnimationFrame(loop);
+  if (document.hidden || sheetOpen || !stream || vid.readyState < 2 || !vid.videoWidth) return;
+  live.upload(vid, vid.videoWidth, vid.videoHeight);
+  const P = eff(); P.seed = (fc % 30) * 1.37;
+  live.draw(P, viewCv.width, viewCv.height);
+  if (S.hist && ++fc % 6 === 0) drawHist(); else if (!S.hist) fc++;
+}
+
+/* ================= ແຕະໂຟກັດ ================= */
+frame.addEventListener('click', e => {
+  const r = frame.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  focus = [x, 1 - y];
+  const ret = $('#reticle');
+  ret.style.left = (e.clientX - r.left) + 'px'; ret.style.top = (e.clientY - r.top) + 'px';
+  ret.classList.remove('show'); void ret.offsetWidth; ret.classList.add('show');
+  clearTimeout(ret._t); ret._t = setTimeout(() => ret.classList.remove('show'), 1400);
+  if (track && caps.focusMode && caps.focusMode.includes('single-shot')) {
+    const px = (S.facing === 'user' && S.mirror) ? 1 - x : x;
+    track.applyConstraints({ advanced:[{ pointsOfInterest:[{ x:px, y }], focusMode:'single-shot' }] }).catch(() => {});
+  }
+  if (S.mode === 'auto') toast('ເລືອກ A ຫຼື M ເພື່ອໃຊ້ໂບເກ້ຈາກຈຸດໂຟກັດ', 1600);
+});
+
+/* ================= UI helpers ================= */
+function mkSlider(label, min, max, step, val, fmt, on) {
+  const d = document.createElement('div'); d.className = 'sl';
+  d.innerHTML = '<div class="slh"><span></span><b></b></div><input type="range">';
+  d.querySelector('span').textContent = label;
+  const b = d.querySelector('b'), i = d.querySelector('input');
+  i.min = min; i.max = max; i.step = step; i.value = val; b.textContent = fmt(+i.value);
+  i.addEventListener('input', () => { b.textContent = fmt(+i.value); on(+i.value); });
+  return d;
+}
+function mkChips(items, cur, on, cls = '') {
+  const r = document.createElement('div'); r.className = 'chips';
+  items.forEach(it => {
+    const b = document.createElement('button');
+    b.className = 'chip ' + cls + (it.id === cur ? ' on' : '');
+    b.dataset.id = it.id; b.innerHTML = it.html;
+    b.onclick = () => { r.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); on(it.id); };
+    r.appendChild(b);
+  });
+  requestAnimationFrame(() => { const on = r.querySelector('.on'); if (on) r.scrollLeft = on.offsetLeft - r.clientWidth / 2 + on.offsetWidth / 2; });
+  return r;
+}
+const fmtEV = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1);
+const fmtSigned = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
+const fmtPct = v => Math.round(v * 100) + '%';
+const lensChip = l => `<b>${l.mm}</b><small>${l.sub}</small>`;
+
+/* ================= Panel ================= */
+const pbody = $('#pbody');
+function renderPanel() {
+  const tabs = MODE_TABS[S.mode];
+  if (!tabs.includes(S.tab)) S.tab = tabs[0];
+  const tabsEl = $('#tabs'); tabsEl.innerHTML = '';
+  tabsEl.classList.toggle('hide', tabs.length < 2);
+  tabs.forEach(t => {
+    const b = document.createElement('button'); b.textContent = TAB_NAMES[t];
+    b.className = t === S.tab ? 'on' : '';
+    b.onclick = () => { S.tab = t; renderPanel(); };
+    tabsEl.appendChild(b);
+  });
+  document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.m === S.mode));
+  pbody.innerHTML = ''; pbody.scrollTop = 0;
+  const add = el => pbody.appendChild(el);
+
+  if (S.tab === 'look') {
+    add(mkChips(LOOKS.map(L => ({ id:L.id, html:`<img alt=""><span>${L.name}</span>` })), S.look, id => { S.look = id; updateBadge(); save(); }, 'lk'));
+    add(mkSlider('ຄວາມເຂັ້ມຂອງໂທນສີ', 0, 1, 0.01, S.intensity, fmtPct, v => { S.intensity = v; save(); }));
+    setTimeout(refreshLookThumbs, 60);
+  }
+  if (S.tab === 'lens') {
+    add(mkChips(LENSES.map(l => ({ id:l.id, html:lensChip(l) })), S.lens, id => { S.lens = id; updateBadge(); save(); }, 'ln'));
+    add(mkSlider('ຮູຮັບແສງ (ໂບເກ້)', 0, STOPS.length - 1, 1, Math.max(0, STOPS.indexOf(S.fstop)), i => 'f/' + STOPS[i], i => { S.fstop = STOPS[i]; updateBadge(); save(); }));
+    add(mkSlider('ຂະໜາດພື້ນທີ່ຄົມຊັດ', 0.4, 2, 0.05, S.focusScale, v => Math.round(v * 100) + '%', v => { S.focusScale = v; save(); }));
+    const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'ແຕະທີ່ວັດຖຸໃນຈໍເພື່ອເລືອກຈຸດຄົມ · ພື້ນຫຼັງຈະເບົາ'; add(h);
+  }
+  if (S.tab === 'light') {
+    add(mkSlider('ຄ່າແສງ (EV)', -2, 2, 0.1, S.ev, fmtEV, v => { S.ev = v; save(); }));
+    if (S.mode === 'm') {
+      add(mkSlider('ອຸນຫະພູມສີ (ເຢັນ ↔ ອຸ່ນ)', -1, 1, 0.01, S.temp, fmtSigned, v => { S.temp = v; save(); }));
+      add(mkSlider('ໂທນ (ຂຽວ ↔ ມ່ວງ)', -1, 1, 0.01, S.tint, fmtSigned, v => { S.tint = v; save(); }));
+    }
+    const r = document.createElement('button'); r.className = 'mini'; r.textContent = 'ຄືນຄ່າເດີມ';
+    r.onclick = () => { S.ev = 0; S.temp = 0; S.tint = 0; save(); renderPanel(); }; add(r);
+  }
+  if (S.tab === 'pro') renderPro(pbody);
+  updateBadge(); save();
+}
+
+function renderPro(root) {
+  const c = caps || {}; let any = false;
+  const st = track && track.getSettings ? track.getSettings() : {};
+  const add = el => { root.appendChild(el); any = true; };
+  const range = k => c[k] && typeof c[k].max === 'number' && c[k].max > c[k].min;
+  if (range('zoom')) add(mkSlider('ຊູມຮາດແວ', c.zoom.min, c.zoom.max, c.zoom.step || 0.1, st.zoom || c.zoom.min, v => v.toFixed(1) + '×', v => hwApply({ zoom:v })));
+  if (range('exposureCompensation')) add(mkSlider('EV ເຊັນເຊີ', c.exposureCompensation.min, c.exposureCompensation.max, c.exposureCompensation.step || 0.1, st.exposureCompensation || 0, fmtEV, v => hwApply({ exposureCompensation:v })));
+  const manExp = c.exposureMode && c.exposureMode.includes('manual');
+  if (manExp && range('exposureTime')) {
+    const lo = Math.log(c.exposureTime.min), hi = Math.log(c.exposureTime.max);
+    const toT = p => Math.exp(lo + (hi - lo) * p / 1000);
+    const cur = st.exposureTime ? (Math.log(st.exposureTime) - lo) / (hi - lo) * 1000 : 500;
+    add(mkSlider('ຄວາມໄວຊັດເຕີ', 0, 1000, 1, cur, p => { const s = toT(p) * 1e-4; return s < 1 ? '1/' + Math.round(1 / s) : s.toFixed(1) + 's'; },
+      p => hwApply({ exposureMode:'manual', exposureTime:toT(p) })));
+  }
+  if (manExp && range('iso')) add(mkSlider('ISO', c.iso.min, c.iso.max, c.iso.step || 1, st.iso || c.iso.min, v => Math.round(v), v => hwApply({ exposureMode:'manual', iso:v })));
+  if (manExp && (range('exposureTime') || range('iso'))) {
+    const b = document.createElement('button'); b.className = 'mini'; b.textContent = 'ກັບຄືນ ແສງອັດຕະໂນມັດ';
+    b.onclick = () => hwApply({ exposureMode:'continuous' }); add(b);
+  }
+  if (c.focusMode && c.focusMode.includes('manual') && range('focusDistance')) {
+    add(mkSlider('ໂຟກັດແມນນວນ (ໃກ້ ↔ ໄກ)', c.focusDistance.min, c.focusDistance.max, c.focusDistance.step || 0.01, st.focusDistance || c.focusDistance.min, v => v.toFixed(2),
+      v => hwApply({ focusMode:'manual', focusDistance:v })));
+    const b = document.createElement('button'); b.className = 'mini'; b.textContent = 'ໂຟກັດອັດຕະໂນມັດ';
+    b.onclick = () => hwApply({ focusMode:'continuous' }); add(b);
+  }
+  if (c.whiteBalanceMode && c.whiteBalanceMode.includes('manual') && range('colorTemperature')) {
+    add(mkSlider('White balance (K)', c.colorTemperature.min, c.colorTemperature.max, c.colorTemperature.step || 50, st.colorTemperature || 5000, v => Math.round(v) + 'K',
+      v => hwApply({ whiteBalanceMode:'manual', colorTemperature:v })));
+  }
+  if (!any) {
+    const n = document.createElement('div'); n.className = 'note';
+    n.textContent = 'ບຣາວເຊີໃນອຸປະກອນນີ້ບໍ່ເປີດໃຫ້ຄວບຄຸມ ISO, ຊັດເຕີ ຫຼື ໂຟກັດໂດຍກົງ (iPhone/Safari ເປັນແບບນີ້). ໃຊ້ແຖບ "ແສງ & ສີ" ແທນ — ປັບໄດ້ຄືກັນ ແລະ ແກ້ຄືນໄດ້ຫຼັງຖ່າຍ. ໃນ Android (Chrome) ສ່ວນຫຼາຍຈະມີຕົວຄວບຄຸມຢູ່ບ່ອນນີ້.';
+    root.appendChild(n);
+  }
+}
+
+function refreshLookThumbs() {
+  if (S.tab !== 'look' || !stream || vid.readyState < 2 || !vid.videoWidth) return;
+  work.upload(vid, vid.videoWidth, vid.videoHeight);
+  const base = eff();
+  LOOKS.forEach(L => {
+    const P = { ...base, look:L.id, intensity:1, blur:false, lensFx:false, seed:1 };
+    work.draw(P, 60, 56);
+    const im = pbody.querySelector(`[data-id="${L.id}"] img`);
+    if (im) im.src = workCv.toDataURL('image/jpeg', 0.75);
+  });
+}
+
+function updateBadge() {
+  const L = LOOKMAP[S.look], lens = LENSMAP[S.lens];
+  let t = L.name;
+  if (S.mode !== 'auto') t = `${lens.mm}mm · f/${S.fstop} · ` + t;
+  if (S.mode !== 'auto' && S.ev) t += ' · ' + fmtEV(S.ev) + 'EV';
+  $('#badge').textContent = t;
+}
+function updateTop() {
+  $('#grid').classList.toggle('hide', !S.grid);
+  $('#bGrid').classList.toggle('on', S.grid);
+  $('#tLbl').textContent = S.timer ? S.timer + 'ວິ' : '';
+  $('#bTimer').classList.toggle('on', !!S.timer);
+  $('#bAspect').textContent = S.aspect;
+  $('#bFlash').classList.toggle('on', S.flash);
+  $('#hist').classList.toggle('hide', !S.hist);
+}
+
+/* ================= Top bar & mode ================= */
+$('#bFlash').onclick = () => {
+  if (S.facing === 'environment' && !(caps && caps.torch)) { toast('ອຸປະກອນນີ້ບໍ່ອະນຸຍາດໃຫ້ເວັບໃຊ້ໄຟແຟລຊ'); S.flash = false; }
+  else { S.flash = !S.flash; toast(S.flash ? (S.facing === 'user' ? 'ແຟລຊໜ້າຈໍ: ເປີດ' : 'ແຟລຊ: ເປີດ') : 'ແຟລຊ: ປິດ', 1200); }
+  updateTop(); save();
+};
+$('#bGrid').onclick = () => { S.grid = !S.grid; updateTop(); save(); };
+$('#bTimer').onclick = () => { S.timer = S.timer === 0 ? 3 : S.timer === 3 ? 10 : 0; updateTop(); save(); toast(S.timer ? 'ໂມງຈັບເວລາ ' + S.timer + ' ວິນາທີ' : 'ປິດໂມງຈັບເວລາ', 1200); };
+$('#bAspect').onclick = () => { S.aspect = ASPECT_ORDER[(ASPECT_ORDER.indexOf(S.aspect) + 1) % ASPECT_ORDER.length]; updateTop(); layout(); save(); };
+document.querySelectorAll('#modes button').forEach(b => b.onclick = () => { S.mode = b.dataset.m; renderPanel(); });
+$('#bFlip').onclick = () => { S.facing = S.facing === 'user' ? 'environment' : 'user'; save(); startCam(); };
+$('#msgB').onclick = () => startCam();
+
+/* ================= ຖ່າຍຮູບ ================= */
+const toBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('encode')), type, q));
+const dims = s => [s.naturalWidth || s.videoWidth || s.width, s.naturalHeight || s.videoHeight || s.height];
+
+async function grabFrame() {
+  let bmp = null;
+  if (imgCap && S.hires && S.facing === 'environment') {
+    try {
+      const b = await imgCap.takePhoto();
+      bmp = await createImageBitmap(b);
+      // ຖ້າທິດທາງຮູບບໍ່ກົງກັບວິດີໂອ ໃຫ້ໃຊ້ເຟຣມວິດີໂອແທນ
+      if ((bmp.width > bmp.height) !== (vid.videoWidth > vid.videoHeight)) { bmp.close && bmp.close(); bmp = null; }
+    } catch (e) { bmp = null; }
+  }
+  const sw = bmp ? bmp.width : vid.videoWidth, sh = bmp ? bmp.height : vid.videoHeight;
+  const s = Math.min(1, MAXTEX / Math.max(sw, sh));
+  const c = document.createElement('canvas'); c.width = Math.round(sw * s); c.height = Math.round(sh * s);
+  c.getContext('2d').drawImage(bmp || vid, 0, 0, c.width, c.height);
+  if (bmp && bmp.close) bmp.close();
+  return c;
+}
+
+function outDims(src, P, maxLong) {
+  const [sw, sh] = dims(src), a = ASPECTS[P.aspect] || 0.75;
+  let rw, rh;
+  if (sw / sh > a) { rh = sh; rw = sh * a; } else { rw = sw; rh = sw / a; }
+  rw /= P.zoom; rh /= P.zoom;
+  let lim = MAXTEX; if (maxLong) lim = Math.min(lim, maxLong);
+  const k = Math.min(1, lim / Math.max(rw, rh));
+  return [Math.max(2, Math.round(rw * k)), Math.max(2, Math.round(rh * k))];
+}
+async function renderOut(src, P, maxLong = 0, type, q) {
+  const [sw, sh] = dims(src);
+  const [w, h] = outDims(src, P, maxLong);
+  work.upload(src, sw, sh);
+  work.draw(P, w, h);
+  const fmt = type || (S.format === 'png' ? 'image/png' : 'image/jpeg');
+  return toBlob(workCv, fmt, q || 0.95);
+}
+function fname(ts, type) {
+  const d = new Date(ts), p = n => String(n).padStart(2, '0');
+  return `SaengsiCam_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${type === 'image/png' ? 'png' : 'jpg'}`;
+}
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function shareOrDownload(blob, name) {
+  const file = new File([blob], name, { type:blob.type });
+  if (navigator.canShare && navigator.canShare({ files:[file] })) {
+    try { await navigator.share({ files:[file] }); return; }
+    catch (e) { if (e.name === 'AbortError') return; if (e.name === 'NotAllowedError') throw e; }
+  }
+  download(blob, name);
+}
+
+let busy = false;
+async function countdown(n) {
+  const el = $('#count');
+  for (let i = n; i > 0; i--) { el.textContent = i; await sleep(1000); }
+  el.textContent = '';
+}
+async function shoot() {
+  if (busy) return;
+  if (!stream || !vid.videoWidth) { toast('ກ້ອງຍັງບໍ່ພ້ອມ'); return; }
+  busy = true; $('#shutter').classList.add('busy');
+  try {
+    if (S.timer) await countdown(S.timer);
+    const P = eff(); P.seed = Math.random() * 100;
+    const torch = S.flash && caps.torch && S.facing === 'environment';
+    const scr = S.flash && S.facing === 'user';
+    if (torch) { await track.applyConstraints({ advanced:[{ torch:true }] }).catch(() => {}); await sleep(400); }
+    if (scr) { $('#flashOv').classList.add('on'); await sleep(280); }
+    const src = await grabFrame();
+    if (torch) track.applyConstraints({ advanced:[{ torch:false }] }).catch(() => {});
+    if (scr) $('#flashOv').classList.remove('on');
+    const bl = $('#blink'); bl.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => bl.classList.remove('on')));
+    if (navigator.vibrate) navigator.vibrate(15);
+    const orig = await toBlob(src, 'image/jpeg', 0.95);
+    const thumb = await renderOut(src, P, 360, 'image/jpeg', 0.8);
+    const now = Date.now();
+    await db.put({ id:now, created:now, orig, params:P, thumb });
+    setGalThumb(thumb);
+    if (S.autosave) { const out = await renderOut(src, P); download(out, fname(now, out.type)); }
+    toast(S.autosave ? 'ຖ່າຍແລ້ວ · ກຳລັງດາວໂຫຼດ' : 'ຖ່າຍແລ້ວ · ເປີດຄັງຮູບເພື່ອບັນທຶກ', 1500);
+  } catch (e) {
+    console.error(e); toast('ຖ່າຍບໍ່ສຳເລັດ: ' + (e.message || e));
+  } finally {
+    busy = false; $('#shutter').classList.remove('busy');
+  }
+}
+$('#shutter').onclick = shoot;
+document.addEventListener('keydown', e => { if ((e.code === 'Space' || e.code === 'Enter' || e.key === 'AudioVolumeUp') && !sheetOpen) { e.preventDefault(); shoot(); } });
+
+/* ================= IndexedDB ================= */
+const db = {
+  _d:null,
+  open() {
+    return this._d || (this._d = new Promise((res, rej) => {
+      const r = indexedDB.open('saengsi-cam', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('shots', { keyPath:'id' });
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+  },
+  async tx(mode, fn) {
+    const d = await this.open();
+    return new Promise((res, rej) => {
+      const t = d.transaction('shots', mode), req = fn(t.objectStore('shots'));
+      t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+  },
+  put(v) { return this.tx('readwrite', s => s.put(v)); },
+  get(id) { return this.tx('readonly', s => s.get(id)); },
+  del(id) { return this.tx('readwrite', s => s.delete(id)); },
+  all() { return this.tx('readonly', s => s.getAll()); },
+  clear() { return this.tx('readwrite', s => s.clear()); },
+};
+let thumbURL = null;
+function setGalThumb(blob) {
+  const im = $('#galThumb');
+  if (thumbURL) URL.revokeObjectURL(thumbURL);
+  if (!blob) { im.classList.add('hide'); thumbURL = null; return; }
+  thumbURL = URL.createObjectURL(blob); im.src = thumbURL; im.classList.remove('hide');
+}
+async function refreshGalThumb() {
+  try { const all = await db.all(); all.sort((a, b) => b.created - a.created); setGalThumb(all[0] ? all[0].thumb : null); } catch (e) {}
+}
+
+/* ================= ຄັງຮູບ ================= */
+let galURLs = [];
+function openSheet(id) { sheetOpen = true; $(id).classList.remove('hide'); }
+function closeSheet(id) {
+  $(id).classList.add('hide');
+  sheetOpen = !['#gal', '#viewer', '#settings'].every(s => $(s).classList.contains('hide'));
+}
+async function openGallery() {
+  openSheet('#gal');
+  galURLs.forEach(u => URL.revokeObjectURL(u)); galURLs = [];
+  const g = $('#galGrid'); g.innerHTML = '';
+  let all = [];
+  try { all = await db.all(); } catch (e) { toast('ອ່ານຄັງຮູບບໍ່ໄດ້'); }
+  all.sort((a, b) => b.created - a.created);
+  $('#galCount').textContent = all.length ? all.length + ' ຮູບ' : '';
+  if (!all.length) { g.innerHTML = '<div class="empty">ຍັງບໍ່ມີຮູບ<br>ກົດປຸ່ມຖ່າຍເພື່ອເລີ່ມ</div>'; return; }
+  all.forEach(r => {
+    const b = document.createElement('button'), im = document.createElement('img');
+    const u = URL.createObjectURL(r.thumb); galURLs.push(u); im.src = u; im.loading = 'lazy';
+    b.appendChild(im); b.onclick = () => openViewer(r.id); g.appendChild(b);
+  });
+}
+$('#bGal').onclick = openGallery;
+$('#galClose').onclick = () => closeSheet('#gal');
+
+/* ================= ແກ້ໄຂຫຼັງຖ່າຍ ================= */
+let V = null;
+async function openViewer(id) {
+  const rec = await db.get(id); if (!rec) return;
+  const url = URL.createObjectURL(rec.orig);
+  const img = new Image(); img.src = url;
+  try { await img.decode(); } catch (e) { toast('ເປີດຮູບບໍ່ໄດ້'); URL.revokeObjectURL(url); return; }
+  V = { rec, img, url, P:{ ...rec.params }, orig0:JSON.stringify(rec.params), prepared:null, raf:0 };
+  viewR.upload(img, img.naturalWidth, img.naturalHeight);
+  $('#vDate').textContent = new Date(rec.created).toLocaleString('lo-LA', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  openSheet('#viewer');
+  buildVCtl(); resetSaveBtn();
+  requestAnimationFrame(vDraw);
+}
+function vChanged() {
+  V.prepared = null; resetSaveBtn();
+  if (!V.raf) V.raf = requestAnimationFrame(() => { V.raf = 0; vDraw(); });
+}
+function vDraw() {
+  if (!V) return;
+  const st = $('#vStage').getBoundingClientRect();
+  const a = ASPECTS[V.P.aspect] || 0.75;
+  let w = st.width - 16, h = w / a;
+  if (h > st.height - 16) { h = st.height - 16; w = h * a; }
+  const cv = $('#vCanvas'); cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  let pw = w * d, ph = h * d; const k = Math.min(1, 1600 / Math.max(pw, ph));
+  viewR.draw(V.P, Math.round(pw * k), Math.round(ph * k));
+}
+function buildVCtl() {
+  const c = $('#vCtl'); c.innerHTML = ''; const P = V.P; const add = el => c.appendChild(el);
+  add(mkChips(LOOKS.map(L => ({ id:L.id, html:L.name })), P.look, id => { P.look = id; vChanged(); }));
+  add(mkChips(LENSES.map(l => ({ id:l.id, html:lensChip(l) })), P.lensFx ? P.lens : '', id => {
+    P.lens = id; P.zoom = LENSMAP[id].zoom; P.blur = true; P.lensFx = true; vChanged(); }, 'ln'));
+  add(mkChips(ASPECT_ORDER.map(a => ({ id:a, html:a })), P.aspect, id => { P.aspect = id; vChanged(); }));
+  add(mkSlider('ຄວາມເຂັ້ມຂອງໂທນສີ', 0, 1, 0.01, P.intensity, fmtPct, v => { P.intensity = v; vChanged(); }));
+  add(mkSlider('ຄ່າແສງ (EV)', -2, 2, 0.1, P.ev, fmtEV, v => { P.ev = v; vChanged(); }));
+  add(mkSlider('ອຸນຫະພູມສີ', -1, 1, 0.01, P.temp, fmtSigned, v => { P.temp = v; vChanged(); }));
+  add(mkSlider('ໂທນ (ຂຽວ ↔ ມ່ວງ)', -1, 1, 0.01, P.tint, fmtSigned, v => { P.tint = v; vChanged(); }));
+  add(mkSlider('ຮູຮັບແສງ (ໂບເກ້)', 0, STOPS.length - 1, 1, P.blur ? Math.max(0, STOPS.indexOf(P.fstop)) : STOPS.length - 1, i => 'f/' + STOPS[i],
+    i => { P.fstop = STOPS[i]; if (!P.lensFx) { P.lensFx = true; P.lens = P.lens || '28'; } P.blur = true; vChanged(); }));
+  add(mkSlider('ຂະໜາດພື້ນທີ່ຄົມຊັດ', 0.4, 2, 0.05, P.focusScale || 1, v => Math.round(v * 100) + '%', v => { P.focusScale = v; vChanged(); }));
+  const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'ແຕະໃສ່ຮູບເພື່ອຍ້າຍຈຸດຄົມຊັດ'; add(h);
+}
+$('#vCanvas').addEventListener('click', e => {
+  if (!V) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  V.P.focus = [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height];
+  if (!V.P.blur) { V.P.blur = true; V.P.lensFx = true; if (V.P.fstop > 2) V.P.fstop = 1.4; buildVCtl(); }
+  vChanged();
+});
+function resetSaveBtn() { const b = $('#vSave'); b.disabled = false; b.textContent = 'ບັນທຶກ / ແບ່ງປັນ'; }
+$('#vSave').onclick = async () => {
+  if (!V) return;
+  const b = $('#vSave');
+  if (V.prepared) {
+    try { await shareOrDownload(V.prepared.blob, V.prepared.name); } catch (e) { download(V.prepared.blob, V.prepared.name); }
+    return;
+  }
+  b.disabled = true; b.textContent = 'ກຳລັງສ້າງຮູບ…';
+  try {
+    const blob = await renderOut(V.img, { ...V.P });
+    V.prepared = { blob, name:fname(V.rec.created, blob.type) };
+    b.disabled = false; b.textContent = 'ບັນທຶກ / ແບ່ງປັນ';
+    try { await shareOrDownload(V.prepared.blob, V.prepared.name); }
+    catch (e) { b.textContent = 'ພ້ອມແລ້ວ — ແຕະອີກເທື່ອ'; toast('ຮູບພ້ອມແລ້ວ · ແຕະປຸ່ມອີກເທື່ອເພື່ອບັນທຶກ'); }
+  } catch (e) { b.disabled = false; resetSaveBtn(); toast('ສ້າງຮູບບໍ່ສຳເລັດ: ' + e.message); }
+};
+$('#vReset').onclick = () => { if (!V) return; V.P = JSON.parse(V.orig0); buildVCtl(); vChanged(); };
+$('#vDel').onclick = async () => {
+  if (!V || !confirm('ລຶບຮູບນີ້ອອກຈາກຄັງຮູບບໍ?')) return;
+  await db.del(V.rec.id); closeViewer(false); openGallery(); refreshGalThumb();
+};
+async function closeViewer(persist = true) {
+  if (!V) { closeSheet('#viewer'); return; }
+  const cur = V;
+  closeSheet('#viewer');
+  if (persist && JSON.stringify(cur.P) !== cur.orig0) {
+    try {
+      cur.rec.params = cur.P;
+      cur.rec.thumb = await renderOut(cur.img, cur.P, 360, 'image/jpeg', 0.8);
+      await db.put(cur.rec);
+      openGallery(); refreshGalThumb();
+    } catch (e) {}
+  }
+  URL.revokeObjectURL(cur.url); V = null;
+}
+$('#vClose').onclick = () => closeViewer(true);
+
+/* ================= ຕັ້ງຄ່າ ================= */
+function renderSettings() {
+  const b = $('#setBody'); b.innerHTML = '';
+  const sec = t => { const d = document.createElement('div'); d.className = 'secT'; d.textContent = t; b.appendChild(d); };
+  const tog = (k, title, sub, after) => {
+    const r = document.createElement('div'); r.className = 'row';
+    r.innerHTML = `<div><div></div><small></small></div><button class="sw${S[k] ? ' on' : ''}" aria-label="toggle"></button>`;
+    r.querySelector('div>div').textContent = title; r.querySelector('small').textContent = sub || '';
+    const sw = r.querySelector('.sw');
+    sw.onclick = () => { S[k] = !S[k]; sw.classList.toggle('on', S[k]); save(); updateTop(); after && after(); };
+    b.appendChild(r);
+  };
+  sec('ການຖ່າຍ');
+  tog('hires', 'ຄວາມລະອຽດສູງ', 'ຂໍພາບເຕັມເຊັນເຊີຈາກກ້ອງ (ຖ້າເຄື່ອງຊ້າ ໃຫ້ປິດ)', () => startCam());
+  tog('mirror', 'ກັບດ້ານກ້ອງໜ້າ', 'ຮູບເຊວຟີເປັນແບບກະຈົກ');
+  tog('hist', 'ສະແດງ Histogram', 'ກຣາຟຄວາມສະຫວ່າງມຸມຊ້າຍເທິງ');
+  tog('autosave', 'ດາວໂຫຼດອັດຕະໂນມັດຫຼັງຖ່າຍ', 'ເໝາະກັບ Android · iPhone ໃຫ້ບັນທຶກຈາກຄັງຮູບ');
+  sec('ໄຟລ໌');
+  const r = document.createElement('div'); r.className = 'row';
+  r.innerHTML = '<div><div>ຮູບແບບໄຟລ໌</div><small>PNG ບໍ່ບີບອັດ ແຕ່ໄຟລ໌ໃຫຍ່</small></div>';
+  r.appendChild(mkChips([{ id:'jpeg', html:'JPEG' }, { id:'png', html:'PNG' }], S.format, id => { S.format = id; save(); }));
+  b.appendChild(r);
+  const clr = document.createElement('div'); clr.className = 'row';
+  clr.innerHTML = '<div><div style="color:#ff6b5e">ລຶບຄັງຮູບທັງໝົດ</div><small>ຮູບທີ່ບັນທຶກອອກໄປແລ້ວຈະບໍ່ຖືກລຶບ</small></div>';
+  clr.style.cursor = 'pointer';
+  clr.onclick = async () => { if (confirm('ລຶບທຸກຮູບໃນຄັງຮູບຂອງແອັບບໍ?')) { await db.clear(); setGalThumb(null); toast('ລຶບແລ້ວ'); } };
+  b.appendChild(clr);
+  sec('ກ່ຽວກັບ & ຂໍ້ຈຳກັດ');
+  const n = document.createElement('div'); n.className = 'note';
+  n.innerHTML = '• ໂທນສີ ແລະ ເລນທັງໝົດເປັນການອອກແບບ/ຈຳລອງດ້ວຍຊອບແວ ບໍ່ແມ່ນເລນແທ້.<br>' +
+    '• ໂບເກ້ຈຳລອງຈາກຈຸດທີ່ແຕະ (ເວັບບໍ່ມີຂໍ້ມູນຄວາມເລິກ) — ເໝາະກັບວັດຖຸຢູ່ກາງ ແລະ ພື້ນຫຼັງຢູ່ຮອບ.<br>' +
+    '• ເລນ 50/75 ເປັນການຊູມດິຈິຕອລ ຈຶ່ງລະອຽດໜ້ອຍກວ່າ 28/35.<br>' +
+    '• ເວັບແອັບຖ່າຍ RAW ບໍ່ໄດ້ — ໃຊ້ PNG ຖ້າຢາກໄດ້ຄຸນນະພາບສູງສຸດ.<br>' +
+    '• iPhone ບໍ່ອະນຸຍາດໃຫ້ເວັບປັບ ISO/ຊັດເຕີ/ໂຟກັດ ແລະ ໄຟແຟລຊ. Android ສ່ວນຫຼາຍໄດ້ (ແຖບ "ຮາດແວ" ໃນໂໝດ M).<br>' +
+    '• ຮູບເກັບຢູ່ໃນເຄື່ອງນີ້ເທົ່ານັ້ນ ພ້ອມຕົ້ນສະບັບ ຈຶ່ງປ່ຽນໂທນ/ເລນ/ອັດຕາສ່ວນໄດ້ຫຼັງຖ່າຍ. ກົດ "ບັນທຶກ / ແບ່ງປັນ" → "Save Image" ເພື່ອເອົາເຂົ້າ Photos.';
+  b.appendChild(n);
+}
+$('#bSettings').onclick = () => { renderSettings(); openSheet('#settings'); };
+$('#setClose').onclick = () => closeSheet('#settings');
+
+/* ================= Lifecycle ================= */
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && (!track || track.readyState === 'ended')) startCam();
+});
+updateTop(); renderPanel(); layout(); refreshGalThumb();
+requestAnimationFrame(loop);
+startCam();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
